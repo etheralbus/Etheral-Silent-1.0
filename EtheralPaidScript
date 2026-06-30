@@ -1,9 +1,7 @@
 --[[
-    Silent Aim System - WITH SETTINGS PANEL
-    - F2/F3 adjust FOV (HUD appears)
-    - F5 toggles settings panel
-    - X toggles aimlock
-    - Settings: ESP Lines, Hitboxes, FOV Circle
+    Silent Aim System - Refined UI with Neon Glow
+    - Shorter FOV dashes with neon glow
+    - Human-made iOS/macOS style
 ]]
 
 local Players = game:GetService("Players")
@@ -22,10 +20,10 @@ local CONFIG = {
     MaxDistance = 200,
     LockStrength = 0.15,
     SwitchCooldown = 0.5,
-    FOVColor = Color3.fromRGB(200, 140, 230),
-    FOVGlowColor = Color3.fromRGB(160, 80, 200),
-    DashLength = 15,
-    GapLength = 10,
+    FOVColor = Color3.fromRGB(200, 140, 230),      -- Neon purple
+    FOVGlowColor = Color3.fromRGB(160, 80, 200),   -- Glow color
+    DashLength = 8,
+    GapLength = 12,
     RotationSpeed = 360,
     HUDAutoHideDelay = 3,
 }
@@ -48,18 +46,27 @@ screenGui.Parent = PlayerGui
 -- ===== HUD =====
 local hudFrame = Instance.new("Frame")
 hudFrame.Name = "HUD"
-hudFrame.Size = UDim2.new(0, 140, 0, 60)
+hudFrame.Size = UDim2.new(0, 140, 0, 56)
 hudFrame.Position = UDim2.new(0.5, -70, 0.05, 0)
-hudFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-hudFrame.BackgroundTransparency = 0.1
-hudFrame.BorderSizePixel = 1
-hudFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
+hudFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+hudFrame.BackgroundTransparency = 0.15
+hudFrame.BorderSizePixel = 0
 hudFrame.Visible = false
 hudFrame.Parent = screenGui
 
 local hudCorner = Instance.new("UICorner")
-hudCorner.CornerRadius = UDim.new(0, 12)
+hudCorner.CornerRadius = UDim.new(0, 14)
 hudCorner.Parent = hudFrame
+
+local hudBorder = Instance.new("Frame")
+hudBorder.Size = UDim2.new(1, 0, 1, 0)
+hudBorder.BackgroundTransparency = 1
+hudBorder.BorderSizePixel = 0.5
+hudBorder.BorderColor3 = Color3.fromRGB(80, 80, 100)
+hudBorder.Parent = hudFrame
+local hudBorderCorner = Instance.new("UICorner")
+hudBorderCorner.CornerRadius = UDim.new(0, 14)
+hudBorderCorner.Parent = hudBorder
 
 local hudLabel = Instance.new("TextLabel")
 hudLabel.Size = UDim2.new(1, 0, 0.35, 0)
@@ -67,7 +74,7 @@ hudLabel.Position = UDim2.new(0, 0, 0, 0)
 hudLabel.BackgroundTransparency = 1
 hudLabel.Text = "FOV"
 hudLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
-hudLabel.TextSize = 12
+hudLabel.TextSize = 11
 hudLabel.Font = Enum.Font.SourceSansSemibold
 hudLabel.Parent = hudFrame
 
@@ -77,11 +84,11 @@ hudSizeLabel.Position = UDim2.new(0, 0, 0.35, 0)
 hudSizeLabel.BackgroundTransparency = 1
 hudSizeLabel.Text = "90"
 hudSizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
-hudSizeLabel.TextSize = 34
+hudSizeLabel.TextSize = 32
 hudSizeLabel.Font = Enum.Font.SourceSansSemibold
 hudSizeLabel.Parent = hudFrame
 
--- ===== FOV Circle =====
+-- ===== FOV Circle with Neon Glow =====
 local fovFrame = Instance.new("Frame")
 fovFrame.Name = "FOVFrame"
 fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
@@ -107,15 +114,41 @@ local function BuildDashes()
         local angle = i * angleStep
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
+        
+        -- Main dash
         local dash = Instance.new("Frame")
-        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2)
-        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.5)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.75)
         dash.BackgroundColor3 = CONFIG.FOVColor
         dash.BackgroundTransparency = 0.1
         dash.BorderSizePixel = 0
         dash.Rotation = math.deg(angle)
         dash.Parent = circleContainer
-        table.insert(dashParts, {Frame = dash, Angle = angle})
+        
+        -- Outer glow
+        local glow1 = Instance.new("Frame")
+        glow1.Size = UDim2.new(1, 8, 1, 8)
+        glow1.Position = UDim2.new(0.5, -4, 0.5, -4)
+        glow1.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow1.BackgroundTransparency = 0.7
+        glow1.BorderSizePixel = 0
+        glow1.Parent = dash
+        
+        -- Inner glow (closer to dash)
+        local glow2 = Instance.new("Frame")
+        glow2.Size = UDim2.new(1, 4, 1, 4)
+        glow2.Position = UDim2.new(0.5, -2, 0.5, -2)
+        glow2.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow2.BackgroundTransparency = 0.5
+        glow2.BorderSizePixel = 0
+        glow2.Parent = dash
+        
+        table.insert(dashParts, {
+            Frame = dash,
+            Glow1 = glow1,
+            Glow2 = glow2,
+            Angle = angle,
+        })
     end
 end
 BuildDashes()
@@ -129,7 +162,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.75)
         data.Frame.Rotation = math.deg(angle)
     end
 end)
@@ -190,54 +223,63 @@ end
 local settingsVisible = false
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsPanel"
-settingsFrame.Size = UDim2.new(0, 260, 0, 220)
-settingsFrame.Position = UDim2.new(0.01, 0, 0.5, -110)
-settingsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-settingsFrame.BackgroundTransparency = 0.1
-settingsFrame.BorderSizePixel = 1
-settingsFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
+settingsFrame.Size = UDim2.new(0, 240, 0, 200)
+settingsFrame.Position = UDim2.new(0.02, 0, 0.5, -100)
+settingsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+settingsFrame.BackgroundTransparency = 0.15
+settingsFrame.BorderSizePixel = 0
 settingsFrame.Visible = false
 settingsFrame.Parent = screenGui
 
 local settingsCorner = Instance.new("UICorner")
-settingsCorner.CornerRadius = UDim.new(0, 12)
+settingsCorner.CornerRadius = UDim.new(0, 14)
 settingsCorner.Parent = settingsFrame
+
+local settingsBorder = Instance.new("Frame")
+settingsBorder.Size = UDim2.new(1, 0, 1, 0)
+settingsBorder.BackgroundTransparency = 1
+settingsBorder.BorderSizePixel = 0.5
+settingsBorder.BorderColor3 = Color3.fromRGB(80, 80, 100)
+settingsBorder.Parent = settingsFrame
+local settingsBorderCorner = Instance.new("UICorner")
+settingsBorderCorner.CornerRadius = UDim.new(0, 14)
+settingsBorderCorner.Parent = settingsBorder
 
 local settingsTitle = Instance.new("TextLabel")
 settingsTitle.Size = UDim2.new(1, 0, 0, 40)
-settingsTitle.Position = UDim2.new(0, 0, 0, 0)
+settingsTitle.Position = UDim2.new(0, 12, 0, 0)
 settingsTitle.BackgroundTransparency = 1
-settingsTitle.Text = "⚙ SETTINGS"
+settingsTitle.Text = "⚙ Settings"
 settingsTitle.TextColor3 = Color3.fromRGB(200, 140, 230)
-settingsTitle.TextSize = 18
+settingsTitle.TextSize = 16
+settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
 settingsTitle.Font = Enum.Font.SourceSansSemibold
 settingsTitle.Parent = settingsFrame
 
 local function CreateToggle(yPos, labelText, stateGetter, stateSetter)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0.9, 0, 0, 40)
+    frame.Size = UDim2.new(0.9, 0, 0, 38)
     frame.Position = UDim2.new(0.05, 0, 0, yPos)
     frame.BackgroundTransparency = 1
     frame.Parent = settingsFrame
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.65, 0, 1, 0)
-    label.Position = UDim2.new(0, 10, 0, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = labelText
-    label.TextColor3 = Color3.fromRGB(200, 200, 210)
-    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(210, 210, 220)
+    label.TextSize = 13
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Font = Enum.Font.SourceSansSemibold
+    label.Font = Enum.Font.SourceSans
     label.Parent = frame
     
     local toggle = Instance.new("Frame")
-    toggle.Size = UDim2.new(0, 24, 0, 24)
-    toggle.Position = UDim2.new(0.85, -12, 0.5, -12)
+    toggle.Size = UDim2.new(0, 22, 0, 22)
+    toggle.Position = UDim2.new(0.85, -11, 0.5, -11)
     toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
     toggle.BackgroundTransparency = 0.3
-    toggle.BorderSizePixel = 1
-    toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+    toggle.BorderSizePixel = 0
     toggle.Parent = frame
     local toggleCorner = Instance.new("UICorner")
     toggleCorner.CornerRadius = UDim.new(0, 4)
@@ -256,10 +298,12 @@ local function CreateToggle(yPos, labelText, stateGetter, stateSetter)
     
     local function update()
         if stateGetter() then
-            toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
+            toggle.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+            toggle.BackgroundTransparency = 0.3
             innerGlow.BackgroundTransparency = 0.2
         else
-            toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+            toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+            toggle.BackgroundTransparency = 0.3
             innerGlow.BackgroundTransparency = 1
         end
     end
@@ -278,10 +322,9 @@ local function CreateToggle(yPos, labelText, stateGetter, stateSetter)
     end)
 end
 
--- Create toggles
 CreateToggle(45, "ESP Lines", function() return espEnabled end, function(v) espEnabled = v end)
-CreateToggle(95, "Hitboxes", function() return hitboxesEnabled end, function(v) hitboxesEnabled = v end)
-CreateToggle(145, "FOV Circle", function() return fovEnabled end, function(v)
+CreateToggle(90, "Hitboxes", function() return hitboxesEnabled end, function(v) hitboxesEnabled = v end)
+CreateToggle(135, "FOV Circle", function() return fovEnabled end, function(v)
     fovEnabled = v
     fovFrame.Visible = v
     if not v then isActive = false end
@@ -323,11 +366,461 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
--- ===== ESP and Hitboxes (placeholders) =====
--- ESP: simply update the status to show it's enabled (or you can add actual lines)
--- For simplicity, we'll just print in the status label when toggled (but we don't have prints).
--- We'll add visual feedback: change status label when ESP/Hitboxes are toggled.
--- Actually we can just keep them as functional toggles for now.
+-- ===== Aimlock =====
+local function GetTargets()
+    local targets = {}
+    local cameraPos = Camera.CFrame.Position
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            local head = player.Character:FindFirstChild("Head")
+            if humanoid and head and humanoid.Health > 0 then
+                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                if onScreen then
+                    local distance = (head.Position - cameraPos).Magnitude
+                    if distance <= CONFIG.MaxDistance then
+                        table.insert(targets, {
+                            Player = player,
+                            Head = head,
+                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
+                            Distance = distance,
+                            HeadPosition = head.Position,
+                        })
+                    end
+                end
+            end
+        end
+    end
+    return targets
+end
+
+local function GetClosestTarget(targets)
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local best, bestDist = nil, CONFIG.FOVRadius + 1
+    for _, target in pairs(targets) do
+        local dist = (target.HeadScreenPos - center).Magnitude
+        if dist <= CONFIG.FOVRadius and dist < bestDist then
+            bestDist = dist
+            best = target
+        end
+    end
+    return best
+end
+
+RunService.RenderStepped:Connect(function()
+    if not isActive or not fovEnabled then return end
+    if not Player.Character then return end
+    local humanoid = Player.Character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    
+    local targets = GetTargets()
+    if #targets == 0 then
+        if currentTarget then
+            currentTarget = nil
+            UpdateStatus("○ NO PLAYERS")
+        end
+        return
+    end
+    
+    local target = GetClosestTarget(targets)
+    if target then
+        if currentTarget and currentTarget.Player ~= target.Player then
+            if tick() - lastSwitchTime >= CONFIG.SwitchCooldown then
+                currentTarget = target
+                lastSwitchTime = tick()
+            else
+                target = currentTarget
+            end
+        elseif not currentTarget then
+            currentTarget = target
+            lastSwitchTime = tick()
+        end
+        
+        if currentTarget then
+            local headPos = currentTarget.HeadPosition
+            local camPos = Camera.CFrame.Position
+            local direction = (headPos - camPos).Unit
+            local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
+            
+            local statusText = "● " .. currentTarget.Player.Name
+            if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
+            statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
+            UpdateStatus(statusText)
+        end
+    else
+        if currentTarget then
+            currentTarget = nil
+            UpdateStatus("○ NO TARGET")
+        end
+    end
+end)--[[
+    Silent Aim System - Refined UI with Neon Glow
+    - Shorter FOV dashes with neon glow
+    - Human-made iOS/macOS style
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- Configuration
+local CONFIG = {
+    FOVRadius = 90,
+    MinFOV = 20,
+    MaxFOV = 200,
+    MaxDistance = 200,
+    LockStrength = 0.15,
+    SwitchCooldown = 0.5,
+    FOVColor = Color3.fromRGB(200, 140, 230),      -- Neon purple
+    FOVGlowColor = Color3.fromRGB(160, 80, 200),   -- Glow color
+    DashLength = 8,
+    GapLength = 12,
+    RotationSpeed = 360,
+    HUDAutoHideDelay = 3,
+}
+
+-- State
+local isActive = false
+local currentTarget = nil
+local lastSwitchTime = 0
+local fovEnabled = true
+local espEnabled = false
+local hitboxesEnabled = false
+
+-- Create GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SilentAimGUI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+-- ===== HUD =====
+local hudFrame = Instance.new("Frame")
+hudFrame.Name = "HUD"
+hudFrame.Size = UDim2.new(0, 140, 0, 56)
+hudFrame.Position = UDim2.new(0.5, -70, 0.05, 0)
+hudFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+hudFrame.BackgroundTransparency = 0.15
+hudFrame.BorderSizePixel = 0
+hudFrame.Visible = false
+hudFrame.Parent = screenGui
+
+local hudCorner = Instance.new("UICorner")
+hudCorner.CornerRadius = UDim.new(0, 14)
+hudCorner.Parent = hudFrame
+
+local hudBorder = Instance.new("Frame")
+hudBorder.Size = UDim2.new(1, 0, 1, 0)
+hudBorder.BackgroundTransparency = 1
+hudBorder.BorderSizePixel = 0.5
+hudBorder.BorderColor3 = Color3.fromRGB(80, 80, 100)
+hudBorder.Parent = hudFrame
+local hudBorderCorner = Instance.new("UICorner")
+hudBorderCorner.CornerRadius = UDim.new(0, 14)
+hudBorderCorner.Parent = hudBorder
+
+local hudLabel = Instance.new("TextLabel")
+hudLabel.Size = UDim2.new(1, 0, 0.35, 0)
+hudLabel.Position = UDim2.new(0, 0, 0, 0)
+hudLabel.BackgroundTransparency = 1
+hudLabel.Text = "FOV"
+hudLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
+hudLabel.TextSize = 11
+hudLabel.Font = Enum.Font.SourceSansSemibold
+hudLabel.Parent = hudFrame
+
+local hudSizeLabel = Instance.new("TextLabel")
+hudSizeLabel.Size = UDim2.new(1, 0, 0.65, 0)
+hudSizeLabel.Position = UDim2.new(0, 0, 0.35, 0)
+hudSizeLabel.BackgroundTransparency = 1
+hudSizeLabel.Text = "90"
+hudSizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
+hudSizeLabel.TextSize = 32
+hudSizeLabel.Font = Enum.Font.SourceSansSemibold
+hudSizeLabel.Parent = hudFrame
+
+-- ===== FOV Circle with Neon Glow =====
+local fovFrame = Instance.new("Frame")
+fovFrame.Name = "FOVFrame"
+fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+fovFrame.BackgroundTransparency = 1
+fovFrame.ClipsDescendants = true
+fovFrame.Parent = screenGui
+
+local circleContainer = Instance.new("Frame")
+circleContainer.Name = "CircleContainer"
+circleContainer.Size = UDim2.new(1, 0, 1, 0)
+circleContainer.Position = UDim2.new(0, 0, 0, 0)
+circleContainer.BackgroundTransparency = 1
+circleContainer.Parent = fovFrame
+
+local dashParts = {}
+local function BuildDashes()
+    for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
+    dashParts = {}
+    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        
+        -- Main dash
+        local dash = Instance.new("Frame")
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.5)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.75)
+        dash.BackgroundColor3 = CONFIG.FOVColor
+        dash.BackgroundTransparency = 0.1
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = circleContainer
+        
+        -- Outer glow
+        local glow1 = Instance.new("Frame")
+        glow1.Size = UDim2.new(1, 8, 1, 8)
+        glow1.Position = UDim2.new(0.5, -4, 0.5, -4)
+        glow1.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow1.BackgroundTransparency = 0.7
+        glow1.BorderSizePixel = 0
+        glow1.Parent = dash
+        
+        -- Inner glow (closer to dash)
+        local glow2 = Instance.new("Frame")
+        glow2.Size = UDim2.new(1, 4, 1, 4)
+        glow2.Position = UDim2.new(0.5, -2, 0.5, -2)
+        glow2.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow2.BackgroundTransparency = 0.5
+        glow2.BorderSizePixel = 0
+        glow2.Parent = dash
+        
+        table.insert(dashParts, {
+            Frame = dash,
+            Glow1 = glow1,
+            Glow2 = glow2,
+            Angle = angle,
+        })
+    end
+end
+BuildDashes()
+
+-- Rotation
+local rotation = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    rotation = (rotation + CONFIG.RotationSpeed * deltaTime) % 360
+    local angleOffset = math.rad(rotation)
+    for _, data in pairs(dashParts) do
+        local angle = data.Angle + angleOffset
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.75)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(0, 280, 0, 25)
+statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
+statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Parent = fovFrame
+
+local function UpdateStatus(text)
+    statusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
+end
+
+local function RebuildFOV()
+    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+    BuildDashes()
+    UpdateStatus(statusLabel.Text:match("^[^|]+") or "○ READY")
+end
+
+-- ===== HUD functions =====
+local hideTimer = nil
+
+local function ShowHUD(value)
+    hudSizeLabel.Text = tostring(value)
+    hudFrame.Visible = true
+    hudFrame.Position = UDim2.new(0.5, -70, -0.12, 0)
+    for i = 1, 10 do
+        local progress = i / 10
+        local y = -0.12 + (0.05 - (-0.12)) * progress
+        hudFrame.Position = UDim2.new(0.5, -70, y, 0)
+        task.wait(0.03)
+    end
+    if hideTimer then
+        task.cancel(hideTimer)
+        hideTimer = nil
+    end
+    hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
+        for i = 1, 10 do
+            local progress = i / 10
+            local y = 0.05 - (0.05 - (-0.12)) * progress
+            hudFrame.Position = UDim2.new(0.5, -70, y, 0)
+            task.wait(0.03)
+        end
+        hudFrame.Visible = false
+        hideTimer = nil
+    end)
+end
+
+-- ===== Settings Panel =====
+local settingsVisible = false
+local settingsFrame = Instance.new("Frame")
+settingsFrame.Name = "SettingsPanel"
+settingsFrame.Size = UDim2.new(0, 240, 0, 200)
+settingsFrame.Position = UDim2.new(0.02, 0, 0.5, -100)
+settingsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+settingsFrame.BackgroundTransparency = 0.15
+settingsFrame.BorderSizePixel = 0
+settingsFrame.Visible = false
+settingsFrame.Parent = screenGui
+
+local settingsCorner = Instance.new("UICorner")
+settingsCorner.CornerRadius = UDim.new(0, 14)
+settingsCorner.Parent = settingsFrame
+
+local settingsBorder = Instance.new("Frame")
+settingsBorder.Size = UDim2.new(1, 0, 1, 0)
+settingsBorder.BackgroundTransparency = 1
+settingsBorder.BorderSizePixel = 0.5
+settingsBorder.BorderColor3 = Color3.fromRGB(80, 80, 100)
+settingsBorder.Parent = settingsFrame
+local settingsBorderCorner = Instance.new("UICorner")
+settingsBorderCorner.CornerRadius = UDim.new(0, 14)
+settingsBorderCorner.Parent = settingsBorder
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Size = UDim2.new(1, 0, 0, 40)
+settingsTitle.Position = UDim2.new(0, 12, 0, 0)
+settingsTitle.BackgroundTransparency = 1
+settingsTitle.Text = "⚙ Settings"
+settingsTitle.TextColor3 = Color3.fromRGB(200, 140, 230)
+settingsTitle.TextSize = 16
+settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+settingsTitle.Font = Enum.Font.SourceSansSemibold
+settingsTitle.Parent = settingsFrame
+
+local function CreateToggle(yPos, labelText, stateGetter, stateSetter)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0.9, 0, 0, 38)
+    frame.Position = UDim2.new(0.05, 0, 0, yPos)
+    frame.BackgroundTransparency = 1
+    frame.Parent = settingsFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.65, 0, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(210, 210, 220)
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.SourceSans
+    label.Parent = frame
+    
+    local toggle = Instance.new("Frame")
+    toggle.Size = UDim2.new(0, 22, 0, 22)
+    toggle.Position = UDim2.new(0.85, -11, 0.5, -11)
+    toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    toggle.BackgroundTransparency = 0.3
+    toggle.BorderSizePixel = 0
+    toggle.Parent = frame
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 4)
+    toggleCorner.Parent = toggle
+    
+    local innerGlow = Instance.new("Frame")
+    innerGlow.Size = UDim2.new(0.6, 0, 0.6, 0)
+    innerGlow.Position = UDim2.new(0.2, 0, 0.2, 0)
+    innerGlow.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+    innerGlow.BackgroundTransparency = 1
+    innerGlow.BorderSizePixel = 0
+    innerGlow.Parent = toggle
+    local innerCorner = Instance.new("UICorner")
+    innerCorner.CornerRadius = UDim.new(0, 3)
+    innerCorner.Parent = innerGlow
+    
+    local function update()
+        if stateGetter() then
+            toggle.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+            toggle.BackgroundTransparency = 0.3
+            innerGlow.BackgroundTransparency = 0.2
+        else
+            toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+            toggle.BackgroundTransparency = 0.3
+            innerGlow.BackgroundTransparency = 1
+        end
+    end
+    update()
+    
+    local function onClick()
+        stateSetter(not stateGetter())
+        update()
+    end
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then onClick() end
+    end)
+    toggle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then onClick() end
+    end)
+end
+
+CreateToggle(45, "ESP Lines", function() return espEnabled end, function(v) espEnabled = v end)
+CreateToggle(90, "Hitboxes", function() return hitboxesEnabled end, function(v) hitboxesEnabled = v end)
+CreateToggle(135, "FOV Circle", function() return fovEnabled end, function(v)
+    fovEnabled = v
+    fovFrame.Visible = v
+    if not v then isActive = false end
+end)
+
+-- ===== Keybindings =====
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.X then
+        if not fovEnabled then
+            UpdateStatus("○ FOV OFF")
+            return
+        end
+        isActive = not isActive
+        UpdateStatus(isActive and "● AIMING" or "○ READY")
+        if not isActive then currentTarget = nil end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F2 then
+        local newSize = math.max(CONFIG.FOVRadius - 10, CONFIG.MinFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F5 then
+        settingsVisible = not settingsVisible
+        settingsFrame.Visible = settingsVisible
+    end
+end)
 
 -- ===== Aimlock =====
 local function GetTargets()
