@@ -1,10 +1,8 @@
 --[[
-    Silent Aim System - Ultra Compact, Sharp HUD
-    - HUD is 4x smaller (140x22)
-    - Extremely sharp corners (no rounding)
+    Silent Aim System - Ultra Mini HUD, Always Rotating
+    - HUD size: 120x18 (extremely compact)
+    - Sharp corners, clean layout
     - Continuous rotation even after FOV change
-    - F2/F3 adjust, slider drag updates
-    - X toggles aimlock
 ]]
 
 local Players = game:GetService("Players")
@@ -40,30 +38,30 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- ===== ULTRA COMPACT HUD (4x smaller, sharp corners) =====
+    -- ===== ULTRA MINI HUD (120x18) =====
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     hudFrame.Position = UDim2.new(0.5, 0, 0.08, 0)
-    hudFrame.Size = UDim2.new(0, 140, 0, 22)   -- 4x smaller
+    hudFrame.Size = UDim2.new(0, 120, 0, 18)
     hudFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     hudFrame.BorderSizePixel = 1
     hudFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
     hudFrame.Visible = false
     hudFrame.Parent = screenGui
     
-    -- Accent bar (sharp)
+    -- Accent bar (purple line)
     local accent = Instance.new("Frame")
     accent.Parent = hudFrame
-    accent.Size = UDim2.new(0, 6, 1, 0)
+    accent.Size = UDim2.new(0, 4, 1, 0)
     accent.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     accent.BorderSizePixel = 0
     
     -- "FOV" label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.Size = UDim2.new(0, 28, 1, 0)
+    label.Position = UDim2.new(0, 8, 0, 0)
+    label.Size = UDim2.new(0, 22, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = "FOV"
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -71,11 +69,11 @@ local function CreateFOVGUI()
     label.TextScaled = true
     label.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Slider background (tiny)
+    -- Slider background
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
-    sliderBG.Position = UDim2.new(0, 45, 0.5, -3)
-    sliderBG.Size = UDim2.new(0, 50, 0, 6)
+    sliderBG.Position = UDim2.new(0, 34, 0.5, -2.5)
+    sliderBG.Size = UDim2.new(0, 40, 0, 5)
     sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     sliderBG.BorderSizePixel = 0
     
@@ -86,20 +84,20 @@ local function CreateFOVGUI()
     fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
     fill.BorderSizePixel = 0
     
-    -- Knob (small)
+    -- Knob
     local knob = Instance.new("Frame")
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
     knob.Position = UDim2.new(0.5, 0, 0.5, 0)
-    knob.Size = UDim2.new(0, 8, 0, 12)
+    knob.Size = UDim2.new(0, 6, 0, 10)
     knob.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     knob.BorderSizePixel = 0
     
-    -- Value box (tiny)
+    -- Value box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
-    valueBox.Position = UDim2.new(1, -35, 0.5, -8)
-    valueBox.Size = UDim2.new(0, 28, 0, 16)
+    valueBox.Position = UDim2.new(1, -28, 0.5, -7)
+    valueBox.Size = UDim2.new(0, 22, 0, 14)
     valueBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     valueBox.BorderSizePixel = 1
     valueBox.BorderColor3 = Color3.fromRGB(132, 74, 220)
@@ -113,7 +111,7 @@ local function CreateFOVGUI()
     valueLabel.Font = Enum.Font.GothamBold
     valueLabel.TextScaled = true
     
-    -- Store references
+    -- Store HUD data
     local hudData = {
         Frame = hudFrame,
         Fill = fill,
@@ -124,7 +122,7 @@ local function CreateFOVGUI()
         hideTimer = nil,
     }
     
-    -- Slider update function
+    -- Slider update
     local function UpdateSlider(percent)
         percent = math.clamp(percent, 0, 1)
         local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
@@ -140,49 +138,33 @@ local function CreateFOVGUI()
         knob.Position = UDim2.new(percent, 0, 0.5, 0)
     end
     
-    -- Slider dragging
+    -- Dragging logic
     local dragging = false
-    sliderBG.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
+    local function startDrag(input)
+        dragging = true
+        local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
+        UpdateSlider(percent)
+    end
+    local function moveDrag(input)
+        if dragging then
             local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
             UpdateSlider(percent)
         end
-    end)
-    sliderBG.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    sliderBG.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
-            UpdateSlider(percent)
-        end
-    end)
-    knob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-        end
-    end)
-    knob.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    knob.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
-            UpdateSlider(percent)
-        end
-    end)
+    end
+    local function endDrag()
+        dragging = false
+    end
     
-    -- Show HUD function
+    sliderBG.InputBegan:Connect(startDrag)
+    sliderBG.InputEnded:Connect(endDrag)
+    sliderBG.InputChanged:Connect(moveDrag)
+    knob.InputBegan:Connect(startDrag)
+    knob.InputEnded:Connect(endDrag)
+    knob.InputChanged:Connect(moveDrag)
+    
+    -- Show HUD
     local function ShowHUD()
-        if hudData.hideTimer then
-            task.cancel(hudData.hideTimer)
-            hudData.hideTimer = nil
-        end
+        if hudData.hideTimer then task.cancel(hudData.hideTimer); hudData.hideTimer = nil end
         if not hudData.isHUDVisible then
             hudFrame.Visible = true
             hudFrame.Position = UDim2.new(0.5, 0, -0.12, 0)
@@ -208,7 +190,7 @@ local function CreateFOVGUI()
         end)
     end
     
-    -- ===== FOV Circle (solid dashes) =====
+    -- ===== FOV Circle =====
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
@@ -247,7 +229,7 @@ local function CreateFOVGUI()
     end
     BuildDashes()
     
-    -- Status label (bottom)
+    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
     statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
@@ -372,11 +354,10 @@ local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
 
--- ===== FIXED ROTATION LOOP (always runs, updates dashes) =====
+-- ===== FIXED ROTATION LOOP (runs continuously, uses current dashParts) =====
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
-    -- Always use the current dashParts table (updated on RebuildFOV)
     for _, data in pairs(fovData.DashParts) do
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
