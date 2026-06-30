@@ -1,10 +1,9 @@
 --[[
-    Silent Aim System - Perfect Headshots
-    - Instant camera lock when aiming (no lerp)
-    - Bullet always hits the head
-    - F2/F3 adjust FOV with HUD
+    Silent Aim System - Accurate Headshots (Smooth Tracking)
+    - LockStrength = 0.4 for precise but smooth tracking
+    - F2/F3 adjust FOV with wider HUD
+    - Thinner FOV dashes (height 0.8)
     - X toggles aimlock
-    - Full GUI and FOV features
 ]]
 
 local Players = game:GetService("Players")
@@ -23,7 +22,7 @@ local CONFIG = {
     MaxFOV = 200,
     MaxDistance = 200,
     ActivateKey = Enum.KeyCode.X,
-    LockStrength = 1.0,          -- Instant lock for perfect accuracy
+    LockStrength = 0.4,
     SwitchCooldown = 0.5,
     FOVColor = Color3.fromRGB(200, 140, 230),
     FOVGlowColor = Color3.fromRGB(160, 80, 200),
@@ -41,11 +40,11 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- iOS Style HUD
+    -- iOS Style HUD (WIDER)
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
-    hudFrame.Size = UDim2.new(0, 200, 0, 65)
-    hudFrame.Position = UDim2.new(0.5, -100, -0.12, 0)
+    hudFrame.Size = UDim2.new(0, 260, 0, 65)
+    hudFrame.Position = UDim2.new(0.5, -130, -0.12, 0)
     hudFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     hudFrame.BackgroundTransparency = 0.08
     hudFrame.BorderSizePixel = 0
@@ -80,8 +79,8 @@ local function CreateFOVGUI()
     
     local fovLabel = Instance.new("TextLabel")
     fovLabel.Name = "FOVLabel"
-    fovLabel.Size = UDim2.new(0, 50, 1, 0)
-    fovLabel.Position = UDim2.new(0, 15, 0, 0)
+    fovLabel.Size = UDim2.new(0, 60, 1, 0)
+    fovLabel.Position = UDim2.new(0, 20, 0, 0)
     fovLabel.BackgroundTransparency = 1
     fovLabel.Text = "FOV"
     fovLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
@@ -93,8 +92,8 @@ local function CreateFOVGUI()
     
     local sizeLabel = Instance.new("TextLabel")
     sizeLabel.Name = "SizeLabel"
-    sizeLabel.Size = UDim2.new(0, 80, 1, 0)
-    sizeLabel.Position = UDim2.new(0, 70, 0, 0)
+    sizeLabel.Size = UDim2.new(0, 100, 1, 0)
+    sizeLabel.Position = UDim2.new(0, 90, 0, 0)
     sizeLabel.BackgroundTransparency = 1
     sizeLabel.Text = "90"
     sizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
@@ -107,7 +106,7 @@ local function CreateFOVGUI()
     local icon = Instance.new("Frame")
     icon.Name = "Icon"
     icon.Size = UDim2.new(0, 8, 0, 8)
-    icon.Position = UDim2.new(0, 175, 0, 28)
+    icon.Position = UDim2.new(0, 235, 0, 28)
     icon.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
     icon.BackgroundTransparency = 0.2
     icon.BorderSizePixel = 0
@@ -157,18 +156,19 @@ local function CreateFOVGUI()
         
         local dash = Instance.new("Frame")
         dash.Name = "Dash_" .. i
-        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
-        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 0.8)   -- Thinner dashes (was 1.0)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.4)  -- adjusted position
         dash.BackgroundColor3 = CONFIG.FOVColor
         dash.BackgroundTransparency = 0.15
         dash.BorderSizePixel = 0
         dash.Rotation = math.deg(angle)
         dash.Parent = circleContainer
         
+        -- Adjusted glow sizes for thinner dashes
         local glow = Instance.new("Frame")
         glow.Name = "Glow"
-        glow.Size = UDim2.new(1, 6, 1, 6)
-        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
+        glow.Size = UDim2.new(1, 5, 1, 5)   -- slightly smaller glow
+        glow.Position = UDim2.new(0.5, -2.5, 0.5, -2.5)
         glow.BackgroundColor3 = CONFIG.FOVGlowColor
         glow.BackgroundTransparency = 0.75
         glow.BorderSizePixel = 0
@@ -213,9 +213,9 @@ local function OpenHUD()
     local hud = fovData.HUD
     if fovData.isHUDVisible then return end
     hud.Visible = true
-    hud.Position = UDim2.new(0.5, -100, -0.12, 0)
+    hud.Position = UDim2.new(0.5, -130, -0.12, 0)
     local rollDown = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, -100, 0.05, 0)
+        Position = UDim2.new(0.5, -130, 0.05, 0)
     })
     rollDown:Play()
     fovData.isHUDVisible = true
@@ -257,7 +257,7 @@ local function HideHUD()
     end
     local hud = fovData.HUD
     local rollUp = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(0.5, -100, -0.12, 0)
+        Position = UDim2.new(0.5, -130, -0.12, 0)
     })
     rollUp:Play()
     fovData.isHUDVisible = false
@@ -265,7 +265,7 @@ local function HideHUD()
     hud.Visible = false
 end
 
--- Rebuild FOV with PURPLE colors
+-- Rebuild FOV with thinner dashes
 local function RebuildFOV()
     local fovFrame = fovData.FOVFrame
     local circleContainer = fovData.CircleContainer
@@ -287,8 +287,8 @@ local function RebuildFOV()
         
         local dash = Instance.new("Frame")
         dash.Name = "Dash_" .. i
-        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
-        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 0.8)   -- Thinner dashes (was 1.0)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.4)
         dash.BackgroundColor3 = CONFIG.FOVColor
         dash.BackgroundTransparency = 0.15
         dash.BorderSizePixel = 0
@@ -297,8 +297,8 @@ local function RebuildFOV()
         
         local glow = Instance.new("Frame")
         glow.Name = "Glow"
-        glow.Size = UDim2.new(1, 6, 1, 6)
-        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
+        glow.Size = UDim2.new(1, 5, 1, 5)
+        glow.Position = UDim2.new(0.5, -2.5, 0.5, -2.5)
         glow.BackgroundColor3 = CONFIG.FOVGlowColor
         glow.BackgroundTransparency = 0.75
         glow.BorderSizePixel = 0
@@ -426,7 +426,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.4)
         data.Frame.Rotation = math.deg(angle)
     end
 end)
@@ -462,23 +462,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== PERFECT HEADSHOT SYSTEM =====
--- Instant lock when shooting
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if isActive and currentTarget then
-            -- Instantly snap camera to head for this shot
-            local headPos = currentTarget.HeadPosition
-            local camPos = Camera.CFrame.Position
-            local direction = (headPos - camPos).Unit
-            local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
-            Camera.CFrame = targetCFrame
-        end
-    end
-end)
-
--- Main loop (instant lock, no lerp)
+-- Main loop (smooth tracking with improved accuracy)
 RunService.RenderStepped:Connect(function()
     if not isActive then
         if fovData.StatusLabel.Text:find("READY") == nil then
@@ -518,12 +502,12 @@ RunService.RenderStepped:Connect(function()
         end
         
         if currentTarget then
-            -- Instant lock (no lerp) for perfect tracking
             local headPos = currentTarget.HeadPosition
             local camPos = Camera.CFrame.Position
             local direction = (headPos - camPos).Unit
             local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
-            Camera.CFrame = targetCFrame
+            
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
             
             local statusText = "● " .. currentTarget.Player.Name
             if currentTarget.Distance <= 50 then
