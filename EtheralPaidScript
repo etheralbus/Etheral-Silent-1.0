@@ -1,6 +1,6 @@
 --[[
-    Silent Aim System - Fixed Rotation, Good Size HUD
-    - HUD: 300x45, sharp corners
+    Silent Aim System - FINAL WORKING
+    - HUD: 350x50, sharp corners
     - Rotation never stops after scaling
     - F2/F3 adjust FOV, slider works
     - X toggles aimlock
@@ -39,12 +39,12 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- ===== HUD (300x45, sharp corners) =====
+    -- ===== HUD (350x50) =====
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     hudFrame.Position = UDim2.new(0.5, 0, 0.08, 0)
-    hudFrame.Size = UDim2.new(0, 300, 0, 45)
+    hudFrame.Size = UDim2.new(0, 350, 0, 50)
     hudFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     hudFrame.BorderSizePixel = 1
     hudFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
@@ -61,8 +61,8 @@ local function CreateFOVGUI()
     -- "FOV" label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
-    label.Position = UDim2.new(0, 18, 0, 0)
-    label.Size = UDim2.new(0, 50, 1, 0)
+    label.Position = UDim2.new(0, 20, 0, 0)
+    label.Size = UDim2.new(0, 55, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = "FOV"
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -73,8 +73,8 @@ local function CreateFOVGUI()
     -- Slider background
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
-    sliderBG.Position = UDim2.new(0, 80, 0.5, -6)
-    sliderBG.Size = UDim2.new(0, 100, 0, 12)
+    sliderBG.Position = UDim2.new(0, 90, 0.5, -8)
+    sliderBG.Size = UDim2.new(0, 120, 0, 16)
     sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     sliderBG.BorderSizePixel = 0
     
@@ -90,15 +90,15 @@ local function CreateFOVGUI()
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
     knob.Position = UDim2.new(0.5, 0, 0.5, 0)
-    knob.Size = UDim2.new(0, 16, 0, 22)
+    knob.Size = UDim2.new(0, 18, 0, 26)
     knob.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     knob.BorderSizePixel = 0
     
     -- Value box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
-    valueBox.Position = UDim2.new(1, -65, 0.5, -17)
-    valueBox.Size = UDim2.new(0, 50, 0, 34)
+    valueBox.Position = UDim2.new(1, -75, 0.5, -20)
+    valueBox.Size = UDim2.new(0, 60, 0, 40)
     valueBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     valueBox.BorderSizePixel = 1
     valueBox.BorderColor3 = Color3.fromRGB(132, 74, 220)
@@ -211,7 +211,6 @@ local function CreateFOVGUI()
     circleContainer.BackgroundTransparency = 1
     circleContainer.Parent = fovFrame
     
-    -- dashParts will be stored here
     local dashParts = {}
     local function BuildDashes()
         for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
@@ -252,7 +251,7 @@ local function CreateFOVGUI()
         ScreenGui = screenGui,
         FOVFrame = fovFrame,
         CircleContainer = circleContainer,
-        DashParts = dashParts,        -- will be updated later
+        DashParts = dashParts,
         StatusLabel = statusLabel,
         HUDData = hudData,
         ShowHUD = ShowHUD,
@@ -267,7 +266,7 @@ local fovData = CreateFOVGUI()
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
     fovData.FOVFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
-    -- Rebuild dashes and update the DashParts reference
+    -- CRITICAL: update DashParts with the newly built table
     fovData.DashParts = fovData.BuildDashes()
     local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
     fovData.StatusLabel.Text = statusText
