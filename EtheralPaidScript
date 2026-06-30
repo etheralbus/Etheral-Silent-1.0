@@ -1,10 +1,8 @@
 --[[
-    Silent Aim System - Final (Smaller HUD, Perfect Rotation)
-    - HUD: 280x40 (medium-small)
-    - Sharp corners, clean layout
+    Silent Aim System - Visible Dashes
+    - Dashes: length 10, height 2.0, fully opaque
+    - HUD: 280x40, sharp corners
     - Rotation never stops after scaling
-    - F2/F3 adjust FOV, slider works
-    - X toggles aimlock
 ]]
 
 local Players = game:GetService("Players")
@@ -25,8 +23,8 @@ local CONFIG = {
     ActivateKey = Enum.KeyCode.X,
     LockStrength = 0.4,
     SwitchCooldown = 0.5,
-    FOVColor = Color3.fromRGB(200, 140, 230),
-    DashLength = 6,
+    FOVColor = Color3.fromRGB(220, 160, 255),  -- Brighter purple
+    DashLength = 10,                           -- Longer dashes
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
@@ -223,10 +221,10 @@ local function CreateFOVGUI()
             local x = CONFIG.FOVRadius * math.cos(angle)
             local y = CONFIG.FOVRadius * math.sin(angle)
             local dash = Instance.new("Frame")
-            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
-            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2.0)   -- Thicker dashes
+            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1.0) -- Centered
             dash.BackgroundColor3 = CONFIG.FOVColor
-            dash.BackgroundTransparency = 0
+            dash.BackgroundTransparency = 0                     -- Fully opaque
             dash.BorderSizePixel = 0
             dash.Rotation = math.deg(angle)
             dash.Parent = circleContainer
@@ -267,7 +265,6 @@ local fovData = CreateFOVGUI()
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
     fovData.FOVFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
-    -- CRITICAL: update DashParts with the newly built table
     fovData.DashParts = fovData.BuildDashes()
     local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
     fovData.StatusLabel.Text = statusText
@@ -363,16 +360,15 @@ local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
 
--- ===== ROTATION LOOP (always runs) =====
+-- ===== ROTATION LOOP =====
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
-    -- Use the current DashParts (updated after rebuild)
     for _, data in pairs(fovData.DashParts) do
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1.0)
         data.Frame.Rotation = math.deg(angle)
     end
 end)
