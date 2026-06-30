@@ -4,8 +4,6 @@
     - F2 to decrease FOV by 10
     - Clean iOS/macOS style HUD
     - Purple FOV circle matching text colors
-    - Stretched horizontal design
-    - Stays open while adjusting FOV
     - Closes after 3 seconds of inactivity
     - Press X to toggle aimlock
 ]]
@@ -28,13 +26,12 @@ local CONFIG = {
     ActivateKey = Enum.KeyCode.X,
     LockStrength = 0.15,
     SwitchCooldown = 0.5,
-    -- Purple FOV colors matching text
     FOVColor = Color3.fromRGB(200, 140, 230),
     FOVGlowColor = Color3.fromRGB(160, 80, 200),
     DashLength = 6,
     GapLength = 12,
     RotationSpeed = 180,
-    HUDAutoHideDelay = 3, -- 3 seconds
+    HUDAutoHideDelay = 3,
 }
 
 -- Create FOV GUI
@@ -211,24 +208,25 @@ local function CreateFOVGUI()
 end
 
 local fovData = CreateFOVGUI()
+local lastInteractionTime = 0
+local hideTask = nil
 
 -- Open HUD with roll down
 local function OpenHUD()
     local hud = fovData.HUD
-    
     if fovData.isHUDVisible then return end
     
     hud.Visible = true
     hud.Position = UDim2.new(0.5, -100, -0.12, 0)
     
-    local rollDown = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    local rollDown = TweenService:Create(hud, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, -100, 0.05, 0)
     })
     rollDown:Play()
     fovData.isHUDVisible = true
 end
 
--- Update HUD number
+-- Update HUD number with bounce
 local function UpdateHUDNumber(fovSize)
     local sizeLabel = fovData.SizeLabel
     sizeLabel.Text = tostring(fovSize)
@@ -244,45 +242,52 @@ local function UpdateHUDNumber(fovSize)
     bounceBack:Play()
 end
 
--- Show HUD
-local function ShowHUD(fovSize)
-    if fovData.hideTimer then
-        task.cancel(fovData.hideTimer)
-        fovData.hideTimer = nil
-    end
-    
-    if not fovData.isHUDVisible then
-        OpenHUD()
-    end
-    
-    UpdateHUDNumber(fovSize)
-    
-    fovData.hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
-        HideHUD()
-    end)
-end
-
 -- Hide HUD with roll up
 local function HideHUD()
     if not fovData.isHUDVisible then return end
-    if fovData.hideTimer then
-        task.cancel(fovData.hideTimer)
-        fovData.hideTimer = nil
-    end
     
     local hud = fovData.HUD
     
-    local rollUp = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    local rollUp = TweenService:Create(hud, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         Position = UDim2.new(0.5, -100, -0.12, 0)
     })
     rollUp:Play()
     fovData.isHUDVisible = false
     
-    task.wait(0.45)
+    task.wait(0.35)
     hud.Visible = false
 end
 
--- Rebuild FOV with PURPLE colors
+-- Start the hide timer
+local function StartHideTimer()
+    -- Cancel any existing timer
+    if hideTask then
+        task.cancel(hideTask)
+        hideTask = nil
+    end
+    
+    -- Start new timer
+    hideTask = task.delay(CONFIG.HUDAutoHideDelay, function()
+        HideHUD()
+        hideTask = nil
+    end)
+end
+
+-- Show HUD with timer reset
+local function ShowHUD(fovSize)
+    -- Open HUD if not visible
+    if not fovData.isHUDVisible then
+        OpenHUD()
+    end
+    
+    -- Update the number
+    UpdateHUDNumber(fovSize)
+    
+    -- Reset the timer
+    StartHideTimer()
+end
+
+-- Rebuild FOV
 local function RebuildFOV()
     local fovFrame = fovData.FOVFrame
     local circleContainer = fovData.CircleContainer
