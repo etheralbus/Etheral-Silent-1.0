@@ -31,17 +31,10 @@ local CONFIG = {
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 3,
-    Settings = {
-        ESP = false,
-        Hitboxes = false,
-        FOVEnabled = true,
-        Smoothing = 0.15,
-    }
 }
 
--- Settings GUI
+-- Settings state
 local settingsOpen = false
-local settingsGui = nil
 local espEnabled = false
 local hitboxesEnabled = false
 local fovEnabled = true
@@ -55,7 +48,6 @@ local function CreateSettingsGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- Main Settings Frame - Left side, stretched
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "SettingsFrame"
     mainFrame.Size = UDim2.new(0, 280, 0, 380)
@@ -83,7 +75,6 @@ local function CreateSettingsGUI()
     borderCorner.CornerRadius = UDim.new(0, 16)
     borderCorner.Parent = border
     
-    -- Title
     local title = Instance.new("TextLabel")
     title.Name = "Title"
     title.Size = UDim2.new(1, 0, 0, 40)
@@ -96,7 +87,6 @@ local function CreateSettingsGUI()
     title.Font = Enum.Font.SourceSansSemibold
     title.Parent = mainFrame
     
-    -- Divider
     local divider = Instance.new("Frame")
     divider.Name = "Divider"
     divider.Size = UDim2.new(0.85, 0, 0, 1)
@@ -106,16 +96,9 @@ local function CreateSettingsGUI()
     divider.BorderSizePixel = 0
     divider.Parent = mainFrame
     
-    -- ESP Option
     local espFrame = CreateOptionFrame(mainFrame, "ESP Lines", 50, "esp")
-    
-    -- Hitboxes Option
     local hitboxFrame = CreateOptionFrame(mainFrame, "Hitboxes", 110, "hitbox")
-    
-    -- FOV Option
     local fovFrame = CreateOptionFrame(mainFrame, "FOV Circle", 170, "fov")
-    
-    -- Smoothing Option
     local smoothFrame = CreateSmoothFrame(mainFrame, "Smoothing", 230)
     
     return {
@@ -143,7 +126,6 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = frame
     
-    -- Label
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.Size = UDim2.new(0.65, 0, 1, 0)
@@ -157,7 +139,6 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     label.Font = Enum.Font.SourceSansSemibold
     label.Parent = frame
     
-    -- Toggle square
     local toggle = Instance.new("Frame")
     toggle.Name = "Toggle"
     toggle.Size = UDim2.new(0, 28, 0, 28)
@@ -172,7 +153,6 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     toggleCorner.CornerRadius = UDim.new(0, 6)
     toggleCorner.Parent = toggle
     
-    -- Toggle inner glow (enabled state)
     local innerGlow = Instance.new("Frame")
     innerGlow.Name = "InnerGlow"
     innerGlow.Size = UDim2.new(0.6, 0, 0.6, 0)
@@ -186,12 +166,10 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     innerCorner.CornerRadius = UDim.new(0, 4)
     innerCorner.Parent = innerGlow
     
-    -- Store reference
     frame.Toggle = toggle
     frame.InnerGlow = innerGlow
     frame.Enabled = false
     
-    -- Click handler
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             ToggleOption(id, frame)
@@ -207,7 +185,7 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     return frame
 end
 
--- Create smoothing slider frame
+-- Create smoothing slider
 local function CreateSmoothFrame(parent, labelText, yPos)
     local frame = Instance.new("Frame")
     frame.Name = "SmoothFrame"
@@ -222,10 +200,9 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = frame
     
-    -- Label
     local label = Instance.new("TextLabel")
     label.Name = "Label"
-    label.Size = UDim2.new(0.65, 0, 1, 0)
+    label.Size = UDim2.new(0.55, 0, 1, 0)
     label.Position = UDim2.new(0, 12, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = labelText
@@ -236,7 +213,6 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     label.Font = Enum.Font.SourceSansSemibold
     label.Parent = frame
     
-    -- Value display
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "ValueLabel"
     valueLabel.Size = UDim2.new(0, 40, 1, 0)
@@ -250,7 +226,6 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     valueLabel.Font = Enum.Font.SourceSansSemibold
     valueLabel.Parent = frame
     
-    -- Slider track
     local track = Instance.new("Frame")
     track.Name = "Track"
     track.Size = UDim2.new(0, 60, 0, 4)
@@ -264,7 +239,6 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     trackCorner.CornerRadius = UDim.new(1, 0)
     trackCorner.Parent = track
     
-    -- Slider fill
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
     fill.Size = UDim2.new(0.3, 0, 1, 0)
@@ -278,7 +252,6 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     fillCorner.CornerRadius = UDim.new(1, 0)
     fillCorner.Parent = fill
     
-    -- Slider handle
     local handle = Instance.new("Frame")
     handle.Name = "Handle"
     handle.Size = UDim2.new(0, 12, 0, 12)
@@ -292,14 +265,12 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     handleCorner.CornerRadius = UDim.new(1, 0)
     handleCorner.Parent = handle
     
-    -- Store references
     frame.ValueLabel = valueLabel
     frame.Track = track
     frame.Fill = fill
     frame.Handle = handle
     frame.Value = 0.15
     
-    -- Dragging
     local dragging = false
     
     track.InputBegan:Connect(function(input)
@@ -339,10 +310,8 @@ local function UpdateSlider(frame, input)
     frame.Handle.Position = UDim2.new(percent, -6, 0.5, -6)
     frame.ValueLabel.Text = string.format("%.2f", value)
     
-    -- Update config
     smoothingValue = value
     CONFIG.LockStrength = value
-    CONFIG.Settings.Smoothing = value
 end
 
 -- Toggle option
@@ -358,10 +327,8 @@ local function ToggleOption(id, frame)
         frame.InnerGlow.BackgroundTransparency = 1
     end
     
-    -- Update settings
     if id == "esp" then
         espEnabled = newState
-        CONFIG.Settings.ESP = newState
         if newState then
             EnableESP()
         else
@@ -369,7 +336,6 @@ local function ToggleOption(id, frame)
         end
     elseif id == "hitbox" then
         hitboxesEnabled = newState
-        CONFIG.Settings.Hitboxes = newState
         if newState then
             EnableHitboxes()
         else
@@ -377,10 +343,8 @@ local function ToggleOption(id, frame)
         end
     elseif id == "fov" then
         fovEnabled = newState
-        CONFIG.Settings.FOVEnabled = newState
         fovData.FOVFrame.Visible = newState
         if not newState then
-            -- Also disable aimlock if FOV is off
             isActive = false
             UpdateStatus("○ FOV OFF")
         else
@@ -494,7 +458,6 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- iOS Style HUD
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.Size = UDim2.new(0, 200, 0, 65)
@@ -583,7 +546,6 @@ local function CreateFOVGUI()
     iconGlowCorner.CornerRadius = UDim.new(1, 0)
     iconGlowCorner.Parent = iconGlow
     
-    -- Main FOV Circle
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
@@ -634,7 +596,6 @@ local function CreateFOVGUI()
         })
     end
     
-    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Name = "StatusLabel"
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
@@ -660,8 +621,6 @@ local function CreateFOVGUI()
 end
 
 local fovData = CreateFOVGUI()
-
--- Settings GUI
 local settingsData = CreateSettingsGUI()
 
 -- HUD Timer
@@ -889,4 +848,33 @@ RunService.Heartbeat:Connect(function(deltaTime)
     for _, data in pairs(fovData.DashParts) do
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
-        local y
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
+-- Input handling
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- X key - Toggle aimlock
+    if input.KeyCode == Enum.KeyCode.X then
+        if not fovEnabled then
+            UpdateStatus("○ FOV OFF")
+            return
+        end
+        isActive = not isActive
+        
+        if isActive then
+            UpdateStatus("● AIMING")
+        else
+            UpdateStatus("○ READY")
+            currentTarget = nil
+        end
+    end
+    
+    -- F3 - Increase FOV
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+           
