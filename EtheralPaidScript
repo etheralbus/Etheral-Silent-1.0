@@ -39,6 +39,181 @@ local espEnabled = false
 local hitboxesEnabled = false
 local fovEnabled = true
 local smoothingValue = 0.15
+local isActive = false
+local currentTarget = nil
+local lastSwitchTime = 0
+
+-- Create FOV GUI
+local function CreateFOVGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SilentAimFOV"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = Player:WaitForChild("PlayerGui")
+    
+    local hudFrame = Instance.new("Frame")
+    hudFrame.Name = "HUD"
+    hudFrame.Size = UDim2.new(0, 200, 0, 65)
+    hudFrame.Position = UDim2.new(0.5, -100, -0.12, 0)
+    hudFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    hudFrame.BackgroundTransparency = 0.08
+    hudFrame.BorderSizePixel = 0
+    hudFrame.Visible = false
+    hudFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = hudFrame
+    
+    local border = Instance.new("Frame")
+    border.Name = "Border"
+    border.Size = UDim2.new(1, 0, 1, 0)
+    border.Position = UDim2.new(0, 0, 0, 0)
+    border.BackgroundTransparency = 1
+    border.BorderSizePixel = 1
+    border.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    border.Parent = hudFrame
+    
+    local borderCorner = Instance.new("UICorner")
+    borderCorner.CornerRadius = UDim.new(0, 12)
+    borderCorner.Parent = border
+    
+    local innerGlow = Instance.new("Frame")
+    innerGlow.Name = "InnerGlow"
+    innerGlow.Size = UDim2.new(0.85, 0, 0, 0.5)
+    innerGlow.Position = UDim2.new(0.075, 0, 0.5, 0)
+    innerGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    innerGlow.BackgroundTransparency = 0.7
+    innerGlow.BorderSizePixel = 0
+    innerGlow.Parent = hudFrame
+    
+    local fovLabel = Instance.new("TextLabel")
+    fovLabel.Name = "FOVLabel"
+    fovLabel.Size = UDim2.new(0, 50, 1, 0)
+    fovLabel.Position = UDim2.new(0, 15, 0, 0)
+    fovLabel.BackgroundTransparency = 1
+    fovLabel.Text = "FOV"
+    fovLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
+    fovLabel.TextSize = 13
+    fovLabel.TextScaled = false
+    fovLabel.TextXAlignment = Enum.TextXAlignment.Left
+    fovLabel.Font = Enum.Font.SourceSansSemibold
+    fovLabel.Parent = hudFrame
+    
+    local sizeLabel = Instance.new("TextLabel")
+    sizeLabel.Name = "SizeLabel"
+    sizeLabel.Size = UDim2.new(0, 80, 1, 0)
+    sizeLabel.Position = UDim2.new(0, 70, 0, 0)
+    sizeLabel.BackgroundTransparency = 1
+    sizeLabel.Text = "90"
+    sizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
+    sizeLabel.TextSize = 36
+    sizeLabel.TextScaled = false
+    sizeLabel.TextXAlignment = Enum.TextXAlignment.Center
+    sizeLabel.Font = Enum.Font.SourceSansSemibold
+    sizeLabel.Parent = hudFrame
+    
+    local icon = Instance.new("Frame")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0, 8, 0, 8)
+    icon.Position = UDim2.new(0, 175, 0, 28)
+    icon.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    icon.BackgroundTransparency = 0.2
+    icon.BorderSizePixel = 0
+    icon.Parent = hudFrame
+    
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(1, 0)
+    iconCorner.Parent = icon
+    
+    local iconGlow = Instance.new("Frame")
+    iconGlow.Name = "IconGlow"
+    iconGlow.Size = UDim2.new(1, 6, 1, 6)
+    iconGlow.Position = UDim2.new(0.5, -3, 0.5, -3)
+    iconGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    iconGlow.BackgroundTransparency = 0.85
+    iconGlow.BorderSizePixel = 0
+    iconGlow.Parent = icon
+    
+    local iconGlowCorner = Instance.new("UICorner")
+    iconGlowCorner.CornerRadius = UDim.new(1, 0)
+    iconGlowCorner.Parent = iconGlow
+    
+    local fovFrame = Instance.new("Frame")
+    fovFrame.Name = "FOVFrame"
+    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+    fovFrame.BackgroundTransparency = 1
+    fovFrame.ClipsDescendants = true
+    fovFrame.Parent = screenGui
+    
+    local circleContainer = Instance.new("Frame")
+    circleContainer.Name = "CircleContainer"
+    circleContainer.Size = UDim2.new(1, 0, 1, 0)
+    circleContainer.Position = UDim2.new(0, 0, 0, 0)
+    circleContainer.BackgroundTransparency = 1
+    circleContainer.Parent = fovFrame
+    
+    local dashParts = {}
+    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        
+        local dash = Instance.new("Frame")
+        dash.Name = "Dash_" .. i
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        dash.BackgroundColor3 = CONFIG.FOVColor
+        dash.BackgroundTransparency = 0.15
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = circleContainer
+        
+        local glow = Instance.new("Frame")
+        glow.Name = "Glow"
+        glow.Size = UDim2.new(1, 6, 1, 6)
+        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
+        glow.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow.BackgroundTransparency = 0.75
+        glow.BorderSizePixel = 0
+        glow.Parent = dash
+        
+        table.insert(dashParts, {
+            Frame = dash,
+            Glow = glow,
+            Angle = angle,
+        })
+    end
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(0, 280, 0, 25)
+    statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
+    statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
+    statusLabel.TextSize = 13
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.Parent = fovFrame
+    
+    return {
+        ScreenGui = screenGui,
+        FOVFrame = fovFrame,
+        CircleContainer = circleContainer,
+        DashParts = dashParts,
+        StatusLabel = statusLabel,
+        HUD = hudFrame,
+        SizeLabel = sizeLabel,
+        Rotation = 0,
+        isHUDVisible = false,
+    }
+end
+
+local fovData = CreateFOVGUI()
 
 -- Create Settings GUI
 local function CreateSettingsGUI()
@@ -98,7 +273,7 @@ local function CreateSettingsGUI()
     
     local espFrame = CreateOptionFrame(mainFrame, "ESP Lines", 50, "esp")
     local hitboxFrame = CreateOptionFrame(mainFrame, "Hitboxes", 110, "hitbox")
-    local fovFrame = CreateOptionFrame(mainFrame, "FOV Circle", 170, "fov")
+    local fovFrameOpt = CreateOptionFrame(mainFrame, "FOV Circle", 170, "fov")
     local smoothFrame = CreateSmoothFrame(mainFrame, "Smoothing", 230)
     
     return {
@@ -106,7 +281,7 @@ local function CreateSettingsGUI()
         MainFrame = mainFrame,
         EspFrame = espFrame,
         HitboxFrame = hitboxFrame,
-        FovFrame = fovFrame,
+        FovFrame = fovFrameOpt,
         SmoothFrame = smoothFrame,
     }
 end
@@ -432,195 +607,6 @@ local function DisableHitboxes()
     hitboxParts = {}
 end
 
--- Update ESP lines
-RunService.RenderStepped:Connect(function()
-    if espEnabled then
-        for _, data in pairs(espLines) do
-            if data.Root and data.Root.Parent then
-                local pos, onScreen = Camera:WorldToViewportPoint(data.Root.Position)
-                if onScreen then
-                    data.Line.Visible = true
-                    data.Line.Position = UDim2.new(0, pos.X - 1, 0, pos.Y - 1)
-                    data.Line.Size = UDim2.new(0, 4, 0, 4)
-                else
-                    data.Line.Visible = false
-                end
-            end
-        end
-    end
-end)
-
--- Create FOV GUI
-local function CreateFOVGUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "SilentAimFOV"
-    screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
-    screenGui.Parent = Player:WaitForChild("PlayerGui")
-    
-    local hudFrame = Instance.new("Frame")
-    hudFrame.Name = "HUD"
-    hudFrame.Size = UDim2.new(0, 200, 0, 65)
-    hudFrame.Position = UDim2.new(0.5, -100, -0.12, 0)
-    hudFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    hudFrame.BackgroundTransparency = 0.08
-    hudFrame.BorderSizePixel = 0
-    hudFrame.Visible = false
-    hudFrame.Parent = screenGui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = hudFrame
-    
-    local border = Instance.new("Frame")
-    border.Name = "Border"
-    border.Size = UDim2.new(1, 0, 1, 0)
-    border.Position = UDim2.new(0, 0, 0, 0)
-    border.BackgroundTransparency = 1
-    border.BorderSizePixel = 1
-    border.BorderColor3 = Color3.fromRGB(80, 80, 100)
-    border.Parent = hudFrame
-    
-    local borderCorner = Instance.new("UICorner")
-    borderCorner.CornerRadius = UDim.new(0, 12)
-    borderCorner.Parent = border
-    
-    local innerGlow = Instance.new("Frame")
-    innerGlow.Name = "InnerGlow"
-    innerGlow.Size = UDim2.new(0.85, 0, 0, 0.5)
-    innerGlow.Position = UDim2.new(0.075, 0, 0.5, 0)
-    innerGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
-    innerGlow.BackgroundTransparency = 0.7
-    innerGlow.BorderSizePixel = 0
-    innerGlow.Parent = hudFrame
-    
-    local fovLabel = Instance.new("TextLabel")
-    fovLabel.Name = "FOVLabel"
-    fovLabel.Size = UDim2.new(0, 50, 1, 0)
-    fovLabel.Position = UDim2.new(0, 15, 0, 0)
-    fovLabel.BackgroundTransparency = 1
-    fovLabel.Text = "FOV"
-    fovLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
-    fovLabel.TextSize = 13
-    fovLabel.TextScaled = false
-    fovLabel.TextXAlignment = Enum.TextXAlignment.Left
-    fovLabel.Font = Enum.Font.SourceSansSemibold
-    fovLabel.Parent = hudFrame
-    
-    local sizeLabel = Instance.new("TextLabel")
-    sizeLabel.Name = "SizeLabel"
-    sizeLabel.Size = UDim2.new(0, 80, 1, 0)
-    sizeLabel.Position = UDim2.new(0, 70, 0, 0)
-    sizeLabel.BackgroundTransparency = 1
-    sizeLabel.Text = "90"
-    sizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
-    sizeLabel.TextSize = 36
-    sizeLabel.TextScaled = false
-    sizeLabel.TextXAlignment = Enum.TextXAlignment.Center
-    sizeLabel.Font = Enum.Font.SourceSansSemibold
-    sizeLabel.Parent = hudFrame
-    
-    local icon = Instance.new("Frame")
-    icon.Name = "Icon"
-    icon.Size = UDim2.new(0, 8, 0, 8)
-    icon.Position = UDim2.new(0, 175, 0, 28)
-    icon.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
-    icon.BackgroundTransparency = 0.2
-    icon.BorderSizePixel = 0
-    icon.Parent = hudFrame
-    
-    local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(1, 0)
-    iconCorner.Parent = icon
-    
-    local iconGlow = Instance.new("Frame")
-    iconGlow.Name = "IconGlow"
-    iconGlow.Size = UDim2.new(1, 6, 1, 6)
-    iconGlow.Position = UDim2.new(0.5, -3, 0.5, -3)
-    iconGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
-    iconGlow.BackgroundTransparency = 0.85
-    iconGlow.BorderSizePixel = 0
-    iconGlow.Parent = icon
-    
-    local iconGlowCorner = Instance.new("UICorner")
-    iconGlowCorner.CornerRadius = UDim.new(1, 0)
-    iconGlowCorner.Parent = iconGlow
-    
-    local fovFrame = Instance.new("Frame")
-    fovFrame.Name = "FOVFrame"
-    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
-    fovFrame.BackgroundTransparency = 1
-    fovFrame.ClipsDescendants = true
-    fovFrame.Parent = screenGui
-    
-    local circleContainer = Instance.new("Frame")
-    circleContainer.Name = "CircleContainer"
-    circleContainer.Size = UDim2.new(1, 0, 1, 0)
-    circleContainer.Position = UDim2.new(0, 0, 0, 0)
-    circleContainer.BackgroundTransparency = 1
-    circleContainer.Parent = fovFrame
-    
-    local dashParts = {}
-    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
-    local angleStep = (2 * math.pi) / numDashes
-    
-    for i = 1, numDashes do
-        local angle = i * angleStep
-        local x = CONFIG.FOVRadius * math.cos(angle)
-        local y = CONFIG.FOVRadius * math.sin(angle)
-        
-        local dash = Instance.new("Frame")
-        dash.Name = "Dash_" .. i
-        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
-        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
-        dash.BackgroundColor3 = CONFIG.FOVColor
-        dash.BackgroundTransparency = 0.15
-        dash.BorderSizePixel = 0
-        dash.Rotation = math.deg(angle)
-        dash.Parent = circleContainer
-        
-        local glow = Instance.new("Frame")
-        glow.Name = "Glow"
-        glow.Size = UDim2.new(1, 6, 1, 6)
-        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
-        glow.BackgroundColor3 = CONFIG.FOVGlowColor
-        glow.BackgroundTransparency = 0.75
-        glow.BorderSizePixel = 0
-        glow.Parent = dash
-        
-        table.insert(dashParts, {
-            Frame = dash,
-            Glow = glow,
-            Angle = angle,
-        })
-    end
-    
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Name = "StatusLabel"
-    statusLabel.Size = UDim2.new(0, 280, 0, 25)
-    statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
-    statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
-    statusLabel.TextSize = 13
-    statusLabel.Font = Enum.Font.SourceSansBold
-    statusLabel.Parent = fovFrame
-    
-    return {
-        ScreenGui = screenGui,
-        FOVFrame = fovFrame,
-        CircleContainer = circleContainer,
-        DashParts = dashParts,
-        StatusLabel = statusLabel,
-        HUD = hudFrame,
-        SizeLabel = sizeLabel,
-        Rotation = 0,
-        isHUDVisible = false,
-    }
-end
-
-local fovData = CreateFOVGUI()
 local settingsData = CreateSettingsGUI()
 
 -- HUD Timer
@@ -835,11 +821,6 @@ local function GetBestTarget(targets, currentTarget)
     return best, true
 end
 
--- Variables
-local isActive = false
-local currentTarget = nil
-local lastSwitchTime = 0
-
 -- Rotation animation
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
@@ -851,6 +832,24 @@ RunService.Heartbeat:Connect(function(deltaTime)
         local y = CONFIG.FOVRadius * math.sin(angle)
         data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
         data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
+-- Update ESP lines
+RunService.RenderStepped:Connect(function()
+    if espEnabled then
+        for _, data in pairs(espLines) do
+            if data.Root and data.Root.Parent then
+                local pos, onScreen = Camera:WorldToViewportPoint(data.Root.Position)
+                if onScreen then
+                    data.Line.Visible = true
+                    data.Line.Position = UDim2.new(0, pos.X - 1, 0, pos.Y - 1)
+                    data.Line.Size = UDim2.new(0, 4, 0, 4)
+                else
+                    data.Line.Visible = false
+                end
+            end
+        end
     end
 end)
 
@@ -877,4 +876,137 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
         if newSize ~= CONFIG.FOVRadius then
             CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    -- F2 - Decrease FOV
+    if input.KeyCode == Enum.KeyCode.F2 then
+        local newSize = math.max(CONFIG.FOVRadius - 10, CONFIG.MinFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    -- F5 - Toggle Settings
+    if input.KeyCode == Enum.KeyCode.F5 then
+        settingsOpen = not settingsOpen
+        settingsData.MainFrame.Visible = settingsOpen
+        
+        if settingsOpen then
+            -- Update toggle states to match current settings
+            UpdateToggleState(settingsData.EspFrame, espEnabled)
+            UpdateToggleState(settingsData.HitboxFrame, hitboxesEnabled)
+            UpdateToggleState(settingsData.FovFrame, fovEnabled)
+            -- Update slider value
+            local smoothFrame = settingsData.SmoothFrame
+            if smoothFrame then
+                local percent = smoothingValue / 0.35 -- max approx 0.35
+                smoothFrame.Fill.Size = UDim2.new(percent, 0, 1, 0)
+                smoothFrame.Handle.Position = UDim2.new(percent, -6, 0.5, -6)
+                smoothFrame.ValueLabel.Text = string.format("%.2f", smoothingValue)
+            end
+        end
+    end
+end)
+
+-- Update toggle visual state
+local function UpdateToggleState(frame, enabled)
+    if not frame then return end
+    frame.Enabled = enabled
+    
+    if enabled then
+        frame.Toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
+        frame.InnerGlow.BackgroundTransparency = 0.2
+    else
+        frame.Toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+        frame.InnerGlow.BackgroundTransparency = 1
+    end
+end
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    if not isActive then
+        if fovData.StatusLabel.Text:find("READY") == nil and fovData.StatusLabel.Text:find("FOV OFF") == nil then
+            UpdateStatus("○ READY")
+        end
+        return
+    end
+    
+    if not fovEnabled then
+        if fovData.StatusLabel.Text ~= "○ FOV OFF" then
+            UpdateStatus("○ FOV OFF")
+        end
+        isActive = false
+        return
+    end
+    
+    if not Player.Character then return end
+    local humanoid = Player.Character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    
+    local targets = GetTargets()
+    
+    if #targets == 0 then
+        if currentTarget then
+            UpdateStatus("○ NO PLAYERS")
+            currentTarget = nil
+        end
+        return
+    end
+    
+    local target, isNew = GetBestTarget(targets, currentTarget)
+    
+    if target then
+        local currentTime = tick()
+        if isNew and currentTarget and target.Player ~= currentTarget.Player then
+            if currentTime - lastSwitchTime >= CONFIG.SwitchCooldown then
+                currentTarget = target
+                lastSwitchTime = currentTime
+            else
+                target = currentTarget
+            end
+        elseif not currentTarget then
+            currentTarget = target
+            lastSwitchTime = currentTime
+        end
+        
+        if currentTarget then
+            local headPos = currentTarget.HeadPosition
+            local camPos = Camera.CFrame.Position
+            
+            local direction = (headPos - camPos).Unit
+            local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
+            
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
+            
+            local statusText = "● " .. currentTarget.Player.Name
+            if currentTarget.Distance <= 50 then
+                statusText = statusText .. " CLOSE"
+            end
+            statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
+            
+            UpdateStatus(statusText)
+        end
+    else
+        if currentTarget then
+            currentTarget = nil
+        end
+        UpdateStatus("○ NO TARGET")
+    end
+end)
+
+-- Cleanup
+Player.CharacterAdded:Connect(function()
+    wait(0.5)
+    if fovData.FOVFrame then
+        fovData.FOVFrame.Visible = true
+    end
+end)
+
+print("F2 - Decrease FOV | F3 - Increase FOV")
+print("F5 - Settings | X - Toggle Aimlock")
            
