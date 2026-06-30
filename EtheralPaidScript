@@ -16,7 +16,6 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
--- Configuration
 local CONFIG = {
     FOVRadius = 90,
     MinFOV = 20,
@@ -33,8 +32,6 @@ local CONFIG = {
     HUDAutoHideDelay = 3,
 }
 
--- Settings state
-local settingsOpen = false
 local espEnabled = false
 local hitboxesEnabled = false
 local fovEnabled = true
@@ -42,8 +39,8 @@ local smoothingValue = 0.15
 local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
+local settingsOpen = false
 
--- Create FOV GUI
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -215,7 +212,6 @@ end
 
 local fovData = CreateFOVGUI()
 
--- Create Settings GUI
 local function CreateSettingsGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimSettings"
@@ -286,7 +282,6 @@ local function CreateSettingsGUI()
     }
 end
 
--- Create option frame with toggle
 local function CreateOptionFrame(parent, labelText, yPos, id)
     local frame = Instance.new("Frame")
     frame.Name = id .. "Frame"
@@ -360,7 +355,6 @@ local function CreateOptionFrame(parent, labelText, yPos, id)
     return frame
 end
 
--- Create smoothing slider
 local function CreateSmoothFrame(parent, labelText, yPos)
     local frame = Instance.new("Frame")
     frame.Name = "SmoothFrame"
@@ -470,7 +464,6 @@ local function CreateSmoothFrame(parent, labelText, yPos)
     return frame
 end
 
--- Update slider
 local function UpdateSlider(frame, input)
     local track = frame.Track
     local absoluteSize = track.AbsoluteSize.X
@@ -489,7 +482,6 @@ local function UpdateSlider(frame, input)
     CONFIG.LockStrength = value
 end
 
--- Toggle option
 local function ToggleOption(id, frame)
     local newState = not frame.Enabled
     frame.Enabled = newState
@@ -528,7 +520,6 @@ local function ToggleOption(id, frame)
     end
 end
 
--- ESP Functions
 local espLines = {}
 
 local function EnableESP()
@@ -570,7 +561,6 @@ local function DisableESP()
     espLines = {}
 end
 
--- Hitbox Functions
 local hitboxParts = {}
 
 local function EnableHitboxes()
@@ -609,7 +599,6 @@ end
 
 local settingsData = CreateSettingsGUI()
 
--- HUD Timer
 local hideTask = nil
 
 local function OpenHUD()
@@ -667,7 +656,6 @@ local function ShowHUD(fovSize)
     StartHideTimer()
 end
 
--- Rebuild FOV
 local function RebuildFOV()
     local fovFrame = fovData.FOVFrame
     local circleContainer = fovData.CircleContainer
@@ -723,7 +711,6 @@ local function UpdateStatus(text)
     fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- Check if player is downed
 local function IsPlayerDowned(character)
     if not character then return true end
     
@@ -742,7 +729,6 @@ local function IsPlayerDowned(character)
     return false
 end
 
--- Get targets
 local function GetTargets()
     local targets = {}
     local cameraPos = Camera.CFrame.Position
@@ -778,7 +764,6 @@ local function GetTargets()
     return targets
 end
 
--- Get best target
 local function GetBestTarget(targets, currentTarget)
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
@@ -821,7 +806,6 @@ local function GetBestTarget(targets, currentTarget)
     return best, true
 end
 
--- Rotation animation
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
@@ -835,7 +819,6 @@ RunService.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- Update ESP lines
 RunService.RenderStepped:Connect(function()
     if espEnabled then
         for _, data in pairs(espLines) do
@@ -853,9 +836,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Input handling
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    -- X key - Toggle aimlock
     if input.KeyCode == Enum.KeyCode.X then
         if not fovEnabled then
             UpdateStatus("○ FOV OFF")
@@ -871,7 +852,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
     
-    -- F3 - Increase FOV
     if input.KeyCode == Enum.KeyCode.F3 then
         local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
         if newSize ~= CONFIG.FOVRadius then
@@ -881,7 +861,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
     
-    -- F2 - Decrease FOV
     if input.KeyCode == Enum.KeyCode.F2 then
         local newSize = math.max(CONFIG.FOVRadius - 10, CONFIG.MinFOV)
         if newSize ~= CONFIG.FOVRadius then
@@ -891,20 +870,31 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
     
-    -- F5 - Toggle Settings
     if input.KeyCode == Enum.KeyCode.F5 then
         settingsOpen = not settingsOpen
         settingsData.MainFrame.Visible = settingsOpen
         
         if settingsOpen then
-            -- Update toggle states to match current settings
+            local function UpdateToggleState(frame, enabled)
+                if not frame then return end
+                frame.Enabled = enabled
+                
+                if enabled then
+                    frame.Toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
+                    frame.InnerGlow.BackgroundTransparency = 0.2
+                else
+                    frame.Toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+                    frame.InnerGlow.BackgroundTransparency = 1
+                end
+            end
+            
             UpdateToggleState(settingsData.EspFrame, espEnabled)
             UpdateToggleState(settingsData.HitboxFrame, hitboxesEnabled)
             UpdateToggleState(settingsData.FovFrame, fovEnabled)
-            -- Update slider value
+            
             local smoothFrame = settingsData.SmoothFrame
             if smoothFrame then
-                local percent = smoothingValue / 0.35 -- max approx 0.35
+                local percent = smoothingValue / 0.35
                 smoothFrame.Fill.Size = UDim2.new(percent, 0, 1, 0)
                 smoothFrame.Handle.Position = UDim2.new(percent, -6, 0.5, -6)
                 smoothFrame.ValueLabel.Text = string.format("%.2f", smoothingValue)
@@ -913,21 +903,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Update toggle visual state
-local function UpdateToggleState(frame, enabled)
-    if not frame then return end
-    frame.Enabled = enabled
-    
-    if enabled then
-        frame.Toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
-        frame.InnerGlow.BackgroundTransparency = 0.2
-    else
-        frame.Toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
-        frame.InnerGlow.BackgroundTransparency = 1
-    end
-end
-
--- Main loop
 RunService.RenderStepped:Connect(function()
     if not isActive then
         if fovData.StatusLabel.Text:find("READY") == nil and fovData.StatusLabel.Text:find("FOV OFF") == nil then
@@ -999,14 +974,990 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Cleanup
+Player.CharacterAdded:Connect(function()
+    wait(0.5)
+    if fovData.FOVFrame then
+        fovData.FOVFrame.Visible = true
+    end
+end)--[[
+    Silent Aim System - Complete Edition
+    - F2/F3 to adjust FOV
+    - F5 to open settings
+    - ESP, Hitboxes, FOV Toggle, Smoothing Control
+    - iOS/macOS style UI
+    - Purple theme
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+
+local CONFIG = {
+    FOVRadius = 90,
+    MinFOV = 20,
+    MaxFOV = 200,
+    MaxDistance = 200,
+    ActivateKey = Enum.KeyCode.X,
+    LockStrength = 0.15,
+    SwitchCooldown = 0.5,
+    FOVColor = Color3.fromRGB(200, 140, 230),
+    FOVGlowColor = Color3.fromRGB(160, 80, 200),
+    DashLength = 6,
+    GapLength = 12,
+    RotationSpeed = 180,
+    HUDAutoHideDelay = 3,
+}
+
+local espEnabled = false
+local hitboxesEnabled = false
+local fovEnabled = true
+local smoothingValue = 0.15
+local isActive = false
+local currentTarget = nil
+local lastSwitchTime = 0
+local settingsOpen = false
+
+local function CreateFOVGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SilentAimFOV"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = Player:WaitForChild("PlayerGui")
+    
+    local hudFrame = Instance.new("Frame")
+    hudFrame.Name = "HUD"
+    hudFrame.Size = UDim2.new(0, 200, 0, 65)
+    hudFrame.Position = UDim2.new(0.5, -100, -0.12, 0)
+    hudFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    hudFrame.BackgroundTransparency = 0.08
+    hudFrame.BorderSizePixel = 0
+    hudFrame.Visible = false
+    hudFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = hudFrame
+    
+    local border = Instance.new("Frame")
+    border.Name = "Border"
+    border.Size = UDim2.new(1, 0, 1, 0)
+    border.Position = UDim2.new(0, 0, 0, 0)
+    border.BackgroundTransparency = 1
+    border.BorderSizePixel = 1
+    border.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    border.Parent = hudFrame
+    
+    local borderCorner = Instance.new("UICorner")
+    borderCorner.CornerRadius = UDim.new(0, 12)
+    borderCorner.Parent = border
+    
+    local innerGlow = Instance.new("Frame")
+    innerGlow.Name = "InnerGlow"
+    innerGlow.Size = UDim2.new(0.85, 0, 0, 0.5)
+    innerGlow.Position = UDim2.new(0.075, 0, 0.5, 0)
+    innerGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    innerGlow.BackgroundTransparency = 0.7
+    innerGlow.BorderSizePixel = 0
+    innerGlow.Parent = hudFrame
+    
+    local fovLabel = Instance.new("TextLabel")
+    fovLabel.Name = "FOVLabel"
+    fovLabel.Size = UDim2.new(0, 50, 1, 0)
+    fovLabel.Position = UDim2.new(0, 15, 0, 0)
+    fovLabel.BackgroundTransparency = 1
+    fovLabel.Text = "FOV"
+    fovLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
+    fovLabel.TextSize = 13
+    fovLabel.TextScaled = false
+    fovLabel.TextXAlignment = Enum.TextXAlignment.Left
+    fovLabel.Font = Enum.Font.SourceSansSemibold
+    fovLabel.Parent = hudFrame
+    
+    local sizeLabel = Instance.new("TextLabel")
+    sizeLabel.Name = "SizeLabel"
+    sizeLabel.Size = UDim2.new(0, 80, 1, 0)
+    sizeLabel.Position = UDim2.new(0, 70, 0, 0)
+    sizeLabel.BackgroundTransparency = 1
+    sizeLabel.Text = "90"
+    sizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
+    sizeLabel.TextSize = 36
+    sizeLabel.TextScaled = false
+    sizeLabel.TextXAlignment = Enum.TextXAlignment.Center
+    sizeLabel.Font = Enum.Font.SourceSansSemibold
+    sizeLabel.Parent = hudFrame
+    
+    local icon = Instance.new("Frame")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0, 8, 0, 8)
+    icon.Position = UDim2.new(0, 175, 0, 28)
+    icon.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    icon.BackgroundTransparency = 0.2
+    icon.BorderSizePixel = 0
+    icon.Parent = hudFrame
+    
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(1, 0)
+    iconCorner.Parent = icon
+    
+    local iconGlow = Instance.new("Frame")
+    iconGlow.Name = "IconGlow"
+    iconGlow.Size = UDim2.new(1, 6, 1, 6)
+    iconGlow.Position = UDim2.new(0.5, -3, 0.5, -3)
+    iconGlow.BackgroundColor3 = Color3.fromRGB(160, 80, 200)
+    iconGlow.BackgroundTransparency = 0.85
+    iconGlow.BorderSizePixel = 0
+    iconGlow.Parent = icon
+    
+    local iconGlowCorner = Instance.new("UICorner")
+    iconGlowCorner.CornerRadius = UDim.new(1, 0)
+    iconGlowCorner.Parent = iconGlow
+    
+    local fovFrame = Instance.new("Frame")
+    fovFrame.Name = "FOVFrame"
+    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+    fovFrame.BackgroundTransparency = 1
+    fovFrame.ClipsDescendants = true
+    fovFrame.Parent = screenGui
+    
+    local circleContainer = Instance.new("Frame")
+    circleContainer.Name = "CircleContainer"
+    circleContainer.Size = UDim2.new(1, 0, 1, 0)
+    circleContainer.Position = UDim2.new(0, 0, 0, 0)
+    circleContainer.BackgroundTransparency = 1
+    circleContainer.Parent = fovFrame
+    
+    local dashParts = {}
+    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        
+        local dash = Instance.new("Frame")
+        dash.Name = "Dash_" .. i
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        dash.BackgroundColor3 = CONFIG.FOVColor
+        dash.BackgroundTransparency = 0.15
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = circleContainer
+        
+        local glow = Instance.new("Frame")
+        glow.Name = "Glow"
+        glow.Size = UDim2.new(1, 6, 1, 6)
+        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
+        glow.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow.BackgroundTransparency = 0.75
+        glow.BorderSizePixel = 0
+        glow.Parent = dash
+        
+        table.insert(dashParts, {
+            Frame = dash,
+            Glow = glow,
+            Angle = angle,
+        })
+    end
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(0, 280, 0, 25)
+    statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
+    statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
+    statusLabel.TextSize = 13
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.Parent = fovFrame
+    
+    return {
+        ScreenGui = screenGui,
+        FOVFrame = fovFrame,
+        CircleContainer = circleContainer,
+        DashParts = dashParts,
+        StatusLabel = statusLabel,
+        HUD = hudFrame,
+        SizeLabel = sizeLabel,
+        Rotation = 0,
+        isHUDVisible = false,
+    }
+end
+
+local fovData = CreateFOVGUI()
+
+local function CreateSettingsGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SilentAimSettings"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = Player:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "SettingsFrame"
+    mainFrame.Size = UDim2.new(0, 280, 0, 380)
+    mainFrame.Position = UDim2.new(0.01, 0, 0.5, -190)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    mainFrame.BackgroundTransparency = 0.08
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Visible = false
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 16)
+    corner.Parent = mainFrame
+    
+    local border = Instance.new("Frame")
+    border.Name = "Border"
+    border.Size = UDim2.new(1, 0, 1, 0)
+    border.Position = UDim2.new(0, 0, 0, 0)
+    border.BackgroundTransparency = 1
+    border.BorderSizePixel = 1
+    border.BorderColor3 = Color3.fromRGB(80, 80, 100)
+    border.Parent = mainFrame
+    
+    local borderCorner = Instance.new("UICorner")
+    borderCorner.CornerRadius = UDim.new(0, 16)
+    borderCorner.Parent = border
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "⚙ SETTINGS"
+    title.TextColor3 = Color3.fromRGB(200, 140, 230)
+    title.TextSize = 18
+    title.TextScaled = false
+    title.Font = Enum.Font.SourceSansSemibold
+    title.Parent = mainFrame
+    
+    local divider = Instance.new("Frame")
+    divider.Name = "Divider"
+    divider.Size = UDim2.new(0.85, 0, 0, 1)
+    divider.Position = UDim2.new(0.075, 0, 0, 40)
+    divider.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    divider.BackgroundTransparency = 0.5
+    divider.BorderSizePixel = 0
+    divider.Parent = mainFrame
+    
+    local espFrame = CreateOptionFrame(mainFrame, "ESP Lines", 50, "esp")
+    local hitboxFrame = CreateOptionFrame(mainFrame, "Hitboxes", 110, "hitbox")
+    local fovFrameOpt = CreateOptionFrame(mainFrame, "FOV Circle", 170, "fov")
+    local smoothFrame = CreateSmoothFrame(mainFrame, "Smoothing", 230)
+    
+    return {
+        ScreenGui = screenGui,
+        MainFrame = mainFrame,
+        EspFrame = espFrame,
+        HitboxFrame = hitboxFrame,
+        FovFrame = fovFrameOpt,
+        SmoothFrame = smoothFrame,
+    }
+end
+
+local function CreateOptionFrame(parent, labelText, yPos, id)
+    local frame = Instance.new("Frame")
+    frame.Name = id .. "Frame"
+    frame.Size = UDim2.new(0.9, 0, 0, 45)
+    frame.Position = UDim2.new(0.05, 0, 0, yPos)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.65, 0, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(200, 200, 210)
+    label.TextSize = 14
+    label.TextScaled = false
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.SourceSansSemibold
+    label.Parent = frame
+    
+    local toggle = Instance.new("Frame")
+    toggle.Name = "Toggle"
+    toggle.Size = UDim2.new(0, 28, 0, 28)
+    toggle.Position = UDim2.new(0.85, -14, 0.5, -14)
+    toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    toggle.BackgroundTransparency = 0.3
+    toggle.BorderSizePixel = 1
+    toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+    toggle.Parent = frame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 6)
+    toggleCorner.Parent = toggle
+    
+    local innerGlow = Instance.new("Frame")
+    innerGlow.Name = "InnerGlow"
+    innerGlow.Size = UDim2.new(0.6, 0, 0.6, 0)
+    innerGlow.Position = UDim2.new(0.2, 0, 0.2, 0)
+    innerGlow.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+    innerGlow.BackgroundTransparency = 1
+    innerGlow.BorderSizePixel = 0
+    innerGlow.Parent = toggle
+    
+    local innerCorner = Instance.new("UICorner")
+    innerCorner.CornerRadius = UDim.new(0, 4)
+    innerCorner.Parent = innerGlow
+    
+    frame.Toggle = toggle
+    frame.InnerGlow = innerGlow
+    frame.Enabled = false
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            ToggleOption(id, frame)
+        end
+    end)
+    
+    toggle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            ToggleOption(id, frame)
+        end
+    end)
+    
+    return frame
+end
+
+local function CreateSmoothFrame(parent, labelText, yPos)
+    local frame = Instance.new("Frame")
+    frame.Name = "SmoothFrame"
+    frame.Size = UDim2.new(0.9, 0, 0, 45)
+    frame.Position = UDim2.new(0.05, 0, 0, yPos)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.55, 0, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(200, 200, 210)
+    label.TextSize = 14
+    label.TextScaled = false
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.SourceSansSemibold
+    label.Parent = frame
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0, 40, 1, 0)
+    valueLabel.Position = UDim2.new(0.75, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = "0.15"
+    valueLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
+    valueLabel.TextSize = 13
+    valueLabel.TextScaled = false
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Font = Enum.Font.SourceSansSemibold
+    valueLabel.Parent = frame
+    
+    local track = Instance.new("Frame")
+    track.Name = "Track"
+    track.Size = UDim2.new(0, 60, 0, 4)
+    track.Position = UDim2.new(0.85, -30, 0.5, -2)
+    track.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    track.BackgroundTransparency = 0.5
+    track.BorderSizePixel = 0
+    track.Parent = frame
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
+    
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(0.3, 0, 1, 0)
+    fill.Position = UDim2.new(0, 0, 0, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+    fill.BackgroundTransparency = 0.3
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+    
+    local handle = Instance.new("Frame")
+    handle.Name = "Handle"
+    handle.Size = UDim2.new(0, 12, 0, 12)
+    handle.Position = UDim2.new(0.3, -6, 0.5, -6)
+    handle.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+    handle.BackgroundTransparency = 0.2
+    handle.BorderSizePixel = 0
+    handle.Parent = track
+    
+    local handleCorner = Instance.new("UICorner")
+    handleCorner.CornerRadius = UDim.new(1, 0)
+    handleCorner.Parent = handle
+    
+    frame.ValueLabel = valueLabel
+    frame.Track = track
+    frame.Fill = fill
+    frame.Handle = handle
+    frame.Value = 0.15
+    
+    local dragging = false
+    
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            UpdateSlider(frame, input)
+        end
+    end)
+    
+    track.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    track.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            UpdateSlider(frame, input)
+        end
+    end)
+    
+    return frame
+end
+
+local function UpdateSlider(frame, input)
+    local track = frame.Track
+    local absoluteSize = track.AbsoluteSize.X
+    local mouseX = input.Position.X - track.AbsolutePosition.X
+    
+    local percent = math.clamp(mouseX / absoluteSize, 0, 1)
+    local value = math.round(percent * 100) / 100
+    value = math.max(value, 0.05)
+    
+    frame.Value = value
+    frame.Fill.Size = UDim2.new(percent, 0, 1, 0)
+    frame.Handle.Position = UDim2.new(percent, -6, 0.5, -6)
+    frame.ValueLabel.Text = string.format("%.2f", value)
+    
+    smoothingValue = value
+    CONFIG.LockStrength = value
+end
+
+local function ToggleOption(id, frame)
+    local newState = not frame.Enabled
+    frame.Enabled = newState
+    
+    if newState then
+        frame.Toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
+        frame.InnerGlow.BackgroundTransparency = 0.2
+    else
+        frame.Toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+        frame.InnerGlow.BackgroundTransparency = 1
+    end
+    
+    if id == "esp" then
+        espEnabled = newState
+        if newState then
+            EnableESP()
+        else
+            DisableESP()
+        end
+    elseif id == "hitbox" then
+        hitboxesEnabled = newState
+        if newState then
+            EnableHitboxes()
+        else
+            DisableHitboxes()
+        end
+    elseif id == "fov" then
+        fovEnabled = newState
+        fovData.FOVFrame.Visible = newState
+        if not newState then
+            isActive = false
+            UpdateStatus("○ FOV OFF")
+        else
+            UpdateStatus("○ READY")
+        end
+    end
+end
+
+local espLines = {}
+
+local function EnableESP()
+    DisableESP()
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            local char = player.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local line = Instance.new("Frame")
+                line.Name = "ESPLine_" .. player.Name
+                line.Size = UDim2.new(0, 2, 0, 2)
+                line.BackgroundColor3 = Color3.fromRGB(200, 140, 230)
+                line.BackgroundTransparency = 0.3
+                line.BorderSizePixel = 0
+                line.Parent = fovData.ScreenGui
+                
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(1, 0)
+                corner.Parent = line
+                
+                table.insert(espLines, {
+                    Player = player,
+                    Line = line,
+                    Root = root
+                })
+            end
+        end
+    end
+end
+
+local function DisableESP()
+    for _, data in pairs(espLines) do
+        if data.Line then
+            data.Line:Destroy()
+        end
+    end
+    espLines = {}
+end
+
+local hitboxParts = {}
+
+local function EnableHitboxes()
+    DisableHitboxes()
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            local char = player.Character
+            local head = char and char:FindFirstChild("Head")
+            
+            if head then
+                local box = Instance.new("BoxHandleAdornment")
+                box.Name = "Hitbox_" .. player.Name
+                box.Size = Vector3.new(1.8, 1.8, 1.8)
+                box.Adornee = head
+                box.Color3 = Color3.fromRGB(200, 140, 230)
+                box.Transparency = 0.5
+                box.ZIndex = 0
+                box.Visible = true
+                box.Parent = head
+                
+                table.insert(hitboxParts, box)
+            end
+        end
+    end
+end
+
+local function DisableHitboxes()
+    for _, box in pairs(hitboxParts) do
+        if box and box.Parent then
+            box:Destroy()
+        end
+    end
+    hitboxParts = {}
+end
+
+local settingsData = CreateSettingsGUI()
+
+local hideTask = nil
+
+local function OpenHUD()
+    local hud = fovData.HUD
+    if fovData.isHUDVisible then return end
+    
+    hud.Visible = true
+    hud.Position = UDim2.new(0.5, -100, -0.12, 0)
+    
+    local rollDown = TweenService:Create(hud, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -100, 0.05, 0)
+    })
+    rollDown:Play()
+    fovData.isHUDVisible = true
+end
+
+local function UpdateHUDNumber(fovSize)
+    local sizeLabel = fovData.SizeLabel
+    sizeLabel.Text = tostring(fovSize)
+end
+
+local function HideHUD()
+    if not fovData.isHUDVisible then return end
+    
+    local hud = fovData.HUD
+    
+    local rollUp = TweenService:Create(hud, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Position = UDim2.new(0.5, -100, -0.12, 0)
+    })
+    rollUp:Play()
+    fovData.isHUDVisible = false
+    
+    task.wait(0.35)
+    hud.Visible = false
+end
+
+local function StartHideTimer()
+    if hideTask then
+        task.cancel(hideTask)
+        hideTask = nil
+    end
+    
+    hideTask = task.delay(CONFIG.HUDAutoHideDelay, function()
+        HideHUD()
+        hideTask = nil
+    end)
+end
+
+local function ShowHUD(fovSize)
+    if not fovData.isHUDVisible then
+        OpenHUD()
+    end
+    
+    UpdateHUDNumber(fovSize)
+    StartHideTimer()
+end
+
+local function RebuildFOV()
+    local fovFrame = fovData.FOVFrame
+    local circleContainer = fovData.CircleContainer
+    
+    for _, child in pairs(circleContainer:GetChildren()) do
+        child:Destroy()
+    end
+    
+    fovData.DashParts = {}
+    
+    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+    
+    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        
+        local dash = Instance.new("Frame")
+        dash.Name = "Dash_" .. i
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        dash.BackgroundColor3 = CONFIG.FOVColor
+        dash.BackgroundTransparency = 0.15
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = circleContainer
+        
+        local glow = Instance.new("Frame")
+        glow.Name = "Glow"
+        glow.Size = UDim2.new(1, 6, 1, 6)
+        glow.Position = UDim2.new(0.5, -3, 0.5, -3)
+        glow.BackgroundColor3 = CONFIG.FOVGlowColor
+        glow.BackgroundTransparency = 0.75
+        glow.BorderSizePixel = 0
+        glow.Parent = dash
+        
+        table.insert(fovData.DashParts, {
+            Frame = dash,
+            Glow = glow,
+            Angle = angle,
+        })
+    end
+    
+    local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
+    fovData.StatusLabel.Text = statusText
+end
+
+local function UpdateStatus(text)
+    fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
+end
+
+local function IsPlayerDowned(character)
+    if not character then return true end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return true end
+    if humanoid.Health <= 0 then return true end
+    
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Physics or 
+       state == Enum.HumanoidStateType.Dead or
+       state == Enum.HumanoidStateType.FallingDown or
+       state == Enum.HumanoidStateType.GettingUp then
+        return true
+    end
+    
+    return false
+end
+
+local function GetTargets()
+    local targets = {}
+    local cameraPos = Camera.CFrame.Position
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            if IsPlayerDowned(player.Character) then
+                continue
+            end
+            
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            local head = player.Character:FindFirstChild("Head")
+            
+            if humanoid and head and humanoid.Health > 0 then
+                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                if onScreen then
+                    local distance = (head.Position - cameraPos).Magnitude
+                    if distance <= CONFIG.MaxDistance then
+                        table.insert(targets, {
+                            Player = player,
+                            Humanoid = humanoid,
+                            Head = head,
+                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
+                            Distance = distance,
+                            HeadPosition = head.Position,
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    return targets
+end
+
+local function GetBestTarget(targets, currentTarget)
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    if currentTarget then
+        local stillValid = false
+        for _, target in pairs(targets) do
+            if target.Player == currentTarget.Player then
+                local dist = (target.HeadScreenPos - center).Magnitude
+                if dist <= CONFIG.FOVRadius then
+                    stillValid = true
+                    currentTarget.Distance = target.Distance
+                    currentTarget.HeadPosition = target.HeadPosition
+                    currentTarget.HeadScreenPos = target.HeadScreenPos
+                    break
+                end
+            end
+        end
+        
+        if stillValid then
+            return currentTarget, false
+        end
+    end
+    
+    local best = nil
+    local bestScore = CONFIG.FOVRadius + 1
+    
+    for _, target in pairs(targets) do
+        local screenDist = (target.HeadScreenPos - center).Magnitude
+        
+        if screenDist <= CONFIG.FOVRadius then
+            local score = screenDist + (target.Distance / 10)
+            
+            if not best or score < bestScore then
+                bestScore = score
+                best = target
+            end
+        end
+    end
+    
+    return best, true
+end
+
+RunService.Heartbeat:Connect(function(deltaTime)
+    fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
+    local angleOffset = math.rad(fovData.Rotation)
+    
+    for _, data in pairs(fovData.DashParts) do
+        local angle = data.Angle + angleOffset
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if espEnabled then
+        for _, data in pairs(espLines) do
+            if data.Root and data.Root.Parent then
+                local pos, onScreen = Camera:WorldToViewportPoint(data.Root.Position)
+                if onScreen then
+                    data.Line.Visible = true
+                    data.Line.Position = UDim2.new(0, pos.X - 1, 0, pos.Y - 1)
+                    data.Line.Size = UDim2.new(0, 4, 0, 4)
+                else
+                    data.Line.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.X then
+        if not fovEnabled then
+            UpdateStatus("○ FOV OFF")
+            return
+        end
+        isActive = not isActive
+        
+        if isActive then
+            UpdateStatus("● AIMING")
+        else
+            UpdateStatus("○ READY")
+            currentTarget = nil
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F2 then
+        local newSize = math.max(CONFIG.FOVRadius - 10, CONFIG.MinFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD(CONFIG.FOVRadius)
+            RebuildFOV()
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F5 then
+        settingsOpen = not settingsOpen
+        settingsData.MainFrame.Visible = settingsOpen
+        
+        if settingsOpen then
+            local function UpdateToggleState(frame, enabled)
+                if not frame then return end
+                frame.Enabled = enabled
+                
+                if enabled then
+                    frame.Toggle.BorderColor3 = Color3.fromRGB(200, 140, 230)
+                    frame.InnerGlow.BackgroundTransparency = 0.2
+                else
+                    frame.Toggle.BorderColor3 = Color3.fromRGB(80, 80, 90)
+                    frame.InnerGlow.BackgroundTransparency = 1
+                end
+            end
+            
+            UpdateToggleState(settingsData.EspFrame, espEnabled)
+            UpdateToggleState(settingsData.HitboxFrame, hitboxesEnabled)
+            UpdateToggleState(settingsData.FovFrame, fovEnabled)
+            
+            local smoothFrame = settingsData.SmoothFrame
+            if smoothFrame then
+                local percent = smoothingValue / 0.35
+                smoothFrame.Fill.Size = UDim2.new(percent, 0, 1, 0)
+                smoothFrame.Handle.Position = UDim2.new(percent, -6, 0.5, -6)
+                smoothFrame.ValueLabel.Text = string.format("%.2f", smoothingValue)
+            end
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not isActive then
+        if fovData.StatusLabel.Text:find("READY") == nil and fovData.StatusLabel.Text:find("FOV OFF") == nil then
+            UpdateStatus("○ READY")
+        end
+        return
+    end
+    
+    if not fovEnabled then
+        if fovData.StatusLabel.Text ~= "○ FOV OFF" then
+            UpdateStatus("○ FOV OFF")
+        end
+        isActive = false
+        return
+    end
+    
+    if not Player.Character then return end
+    local humanoid = Player.Character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    
+    local targets = GetTargets()
+    
+    if #targets == 0 then
+        if currentTarget then
+            UpdateStatus("○ NO PLAYERS")
+            currentTarget = nil
+        end
+        return
+    end
+    
+    local target, isNew = GetBestTarget(targets, currentTarget)
+    
+    if target then
+        local currentTime = tick()
+        if isNew and currentTarget and target.Player ~= currentTarget.Player then
+            if currentTime - lastSwitchTime >= CONFIG.SwitchCooldown then
+                currentTarget = target
+                lastSwitchTime = currentTime
+            else
+                target = currentTarget
+            end
+        elseif not currentTarget then
+            currentTarget = target
+            lastSwitchTime = currentTime
+        end
+        
+        if currentTarget then
+            local headPos = currentTarget.HeadPosition
+            local camPos = Camera.CFrame.Position
+            
+            local direction = (headPos - camPos).Unit
+            local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
+            
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
+            
+            local statusText = "● " .. currentTarget.Player.Name
+            if currentTarget.Distance <= 50 then
+                statusText = statusText .. " CLOSE"
+            end
+            statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
+            
+            UpdateStatus(statusText)
+        end
+    else
+        if currentTarget then
+            currentTarget = nil
+        end
+        UpdateStatus("○ NO TARGET")
+    end
+end)
+
 Player.CharacterAdded:Connect(function()
     wait(0.5)
     if fovData.FOVFrame then
         fovData.FOVFrame.Visible = true
     end
 end)
-
-print("F2 - Decrease FOV | F3 - Increase FOV")
-print("F5 - Settings | X - Toggle Aimlock")
-           
