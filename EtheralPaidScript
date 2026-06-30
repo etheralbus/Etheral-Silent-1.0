@@ -1,8 +1,8 @@
 --[[
-    Silent Aim System - Fixed FOV Visibility & Clean HUD
-    - Solid FOV dashes (fully opaque, bright neon purple)
-    - Clean HUD: "FOV" label and number
-    - F2/F3 adjust FOV with HUD
+    Silent Aim System - Clean FOV & Minimal HUD
+    - Solid FOV dashes (no glow, fully visible)
+    - Clean HUD: "FOV" label + number (like the image)
+    - F2/F3 adjust FOV
     - X toggles aimlock
 ]]
 
@@ -25,7 +25,6 @@ local CONFIG = {
     LockStrength = 0.4,
     SwitchCooldown = 0.5,
     FOVColor = Color3.fromRGB(200, 140, 230),
-    FOVGlowColor = Color3.fromRGB(160, 80, 200),
     DashLength = 6,
     GapLength = 12,
     RotationSpeed = 180,
@@ -40,19 +39,19 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- Clean HUD (FOV label + number)
+    -- Clean HUD (like the image: "FOV" + number)
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
-    hudFrame.Size = UDim2.new(0, 140, 0, 56)          -- Compact, clean
-    hudFrame.Position = UDim2.new(0.5, -70, -0.12, 0)
+    hudFrame.Size = UDim2.new(0, 130, 0, 52)          -- Compact
+    hudFrame.Position = UDim2.new(0.5, -65, -0.12, 0)
     hudFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
-    hudFrame.BackgroundTransparency = 0.15
+    hudFrame.BackgroundTransparency = 0.1
     hudFrame.BorderSizePixel = 0
     hudFrame.Visible = false
     hudFrame.Parent = screenGui
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 14)
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = hudFrame
     
     local border = Instance.new("Frame")
@@ -62,32 +61,32 @@ local function CreateFOVGUI()
     border.BorderColor3 = Color3.fromRGB(80, 80, 100)
     border.Parent = hudFrame
     local borderCorner = Instance.new("UICorner")
-    borderCorner.CornerRadius = UDim.new(0, 14)
+    borderCorner.CornerRadius = UDim.new(0, 12)
     borderCorner.Parent = border
     
     -- "FOV" label
     local fovLabel = Instance.new("TextLabel")
     fovLabel.Name = "FOVLabel"
-    fovLabel.Size = UDim2.new(1, 0, 0.4, 0)
+    fovLabel.Size = UDim2.new(1, 0, 0.35, 0)
     fovLabel.Position = UDim2.new(0, 0, 0, 0)
     fovLabel.BackgroundTransparency = 1
     fovLabel.Text = "FOV"
     fovLabel.TextColor3 = Color3.fromRGB(160, 80, 200)
-    fovLabel.TextSize = 12
+    fovLabel.TextSize = 11
     fovLabel.TextScaled = false
     fovLabel.TextXAlignment = Enum.TextXAlignment.Center
     fovLabel.Font = Enum.Font.SourceSansSemibold
     fovLabel.Parent = hudFrame
     
-    -- Number (size)
+    -- Number (FOV size)
     local sizeLabel = Instance.new("TextLabel")
     sizeLabel.Name = "SizeLabel"
-    sizeLabel.Size = UDim2.new(1, 0, 0.6, 0)
-    sizeLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    sizeLabel.Size = UDim2.new(1, 0, 0.65, 0)
+    sizeLabel.Position = UDim2.new(0, 0, 0.35, 0)
     sizeLabel.BackgroundTransparency = 1
     sizeLabel.Text = "90"
     sizeLabel.TextColor3 = Color3.fromRGB(200, 140, 230)
-    sizeLabel.TextSize = 34
+    sizeLabel.TextSize = 32
     sizeLabel.TextScaled = false
     sizeLabel.TextXAlignment = Enum.TextXAlignment.Center
     sizeLabel.Font = Enum.Font.SourceSansSemibold
@@ -121,28 +120,18 @@ local function CreateFOVGUI()
             local x = CONFIG.FOVRadius * math.cos(angle)
             local y = CONFIG.FOVRadius * math.sin(angle)
             
-            -- Solid dash (fully opaque)
+            -- Solid dash (no glow, fully visible)
             local dash = Instance.new("Frame")
-            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 0.8)
-            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.4)
+            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 1.0)   -- height 1.0
+            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
             dash.BackgroundColor3 = CONFIG.FOVColor
-            dash.BackgroundTransparency = 0        -- Fully opaque
+            dash.BackgroundTransparency = 0.05           -- nearly opaque for visibility
             dash.BorderSizePixel = 0
             dash.Rotation = math.deg(angle)
             dash.Parent = circleContainer
             
-            -- Glow (semi-transparent, makes it glow)
-            local glow = Instance.new("Frame")
-            glow.Size = UDim2.new(1, 6, 1, 6)
-            glow.Position = UDim2.new(0.5, -3, 0.5, -3)
-            glow.BackgroundColor3 = CONFIG.FOVGlowColor
-            glow.BackgroundTransparency = 0.5
-            glow.BorderSizePixel = 0
-            glow.Parent = dash
-            
             table.insert(dashParts, {
                 Frame = dash,
-                Glow = glow,
                 Angle = angle,
             })
         end
@@ -178,14 +167,14 @@ end
 
 local fovData = CreateFOVGUI()
 
--- HUD open/close (same as before, but adjusted width)
+-- HUD open/close (roll animation)
 local function OpenHUD()
     local hud = fovData.HUD
     if fovData.isHUDVisible then return end
     hud.Visible = true
-    hud.Position = UDim2.new(0.5, -70, -0.12, 0)  -- centered for 140 width
+    hud.Position = UDim2.new(0.5, -65, -0.12, 0)
     local rollDown = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, -70, 0.05, 0)
+        Position = UDim2.new(0.5, -65, 0.05, 0)
     })
     rollDown:Play()
     fovData.isHUDVisible = true
@@ -194,14 +183,14 @@ end
 local function UpdateHUDNumber(fovSize)
     local sizeLabel = fovData.SizeLabel
     sizeLabel.Text = tostring(fovSize)
-    -- Bounce effect
+    -- Small bounce effect
     local bounce = TweenService:Create(sizeLabel, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        TextSize = 38
+        TextSize = 36
     })
     bounce:Play()
     task.wait(0.08)
     local bounceBack = TweenService:Create(sizeLabel, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        TextSize = 34
+        TextSize = 32
     })
     bounceBack:Play()
 end
@@ -228,7 +217,7 @@ local function HideHUD()
     end
     local hud = fovData.HUD
     local rollUp = TweenService:Create(hud, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(0.5, -70, -0.12, 0)
+        Position = UDim2.new(0.5, -65, -0.12, 0)
     })
     rollUp:Play()
     fovData.isHUDVisible = false
@@ -236,7 +225,7 @@ local function HideHUD()
     hud.Visible = false
 end
 
--- Rebuild FOV (with solid dashes)
+-- Rebuild FOV (when size changes)
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
     fovData.FOVFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
@@ -249,7 +238,7 @@ local function UpdateStatus(text)
     fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- Downed player check (unchanged)
+-- Downed player check
 local function IsPlayerDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -355,7 +344,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
         local angle = data.Angle + angleOffset
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.4)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 0.5)
         data.Frame.Rotation = math.deg(angle)
     end
 end)
