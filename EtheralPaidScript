@@ -1,6 +1,7 @@
 --[[
-    Silent Aim System - FINAL WORKING
-    - HUD: 350x50, sharp corners
+    Silent Aim System - Final (Smaller HUD, Perfect Rotation)
+    - HUD: 280x40 (medium-small)
+    - Sharp corners, clean layout
     - Rotation never stops after scaling
     - F2/F3 adjust FOV, slider works
     - X toggles aimlock
@@ -39,12 +40,12 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- ===== HUD (350x50) =====
+    -- ===== HUD (280x40) =====
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     hudFrame.Position = UDim2.new(0.5, 0, 0.08, 0)
-    hudFrame.Size = UDim2.new(0, 350, 0, 50)
+    hudFrame.Size = UDim2.new(0, 280, 0, 40)
     hudFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
     hudFrame.BorderSizePixel = 1
     hudFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
@@ -54,15 +55,15 @@ local function CreateFOVGUI()
     -- Accent bar
     local accent = Instance.new("Frame")
     accent.Parent = hudFrame
-    accent.Size = UDim2.new(0, 8, 1, 0)
+    accent.Size = UDim2.new(0, 6, 1, 0)
     accent.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     accent.BorderSizePixel = 0
     
     -- "FOV" label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
-    label.Position = UDim2.new(0, 20, 0, 0)
-    label.Size = UDim2.new(0, 55, 1, 0)
+    label.Position = UDim2.new(0, 14, 0, 0)
+    label.Size = UDim2.new(0, 44, 1, 0)
     label.BackgroundTransparency = 1
     label.Text = "FOV"
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -73,8 +74,8 @@ local function CreateFOVGUI()
     -- Slider background
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
-    sliderBG.Position = UDim2.new(0, 90, 0.5, -8)
-    sliderBG.Size = UDim2.new(0, 120, 0, 16)
+    sliderBG.Position = UDim2.new(0, 68, 0.5, -6)
+    sliderBG.Size = UDim2.new(0, 90, 0, 12)
     sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     sliderBG.BorderSizePixel = 0
     
@@ -90,15 +91,15 @@ local function CreateFOVGUI()
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
     knob.Position = UDim2.new(0.5, 0, 0.5, 0)
-    knob.Size = UDim2.new(0, 18, 0, 26)
+    knob.Size = UDim2.new(0, 14, 0, 20)
     knob.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     knob.BorderSizePixel = 0
     
     -- Value box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
-    valueBox.Position = UDim2.new(1, -75, 0.5, -20)
-    valueBox.Size = UDim2.new(0, 60, 0, 40)
+    valueBox.Position = UDim2.new(1, -56, 0.5, -15)
+    valueBox.Size = UDim2.new(0, 44, 0, 30)
     valueBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     valueBox.BorderSizePixel = 1
     valueBox.BorderColor3 = Color3.fromRGB(132, 74, 220)
