@@ -1,9 +1,10 @@
 --[[
-    Silent Aim System - Mouse-Following FOV, No CamLock
-    - FOV circle follows your cursor
-    - When shooting, if target is in FOV → bullet hits head
-    - Camera stays free (no lock)
-    - F2/F3 adjust FOV, HUD at top
+    Silent Aim System - Manual Target Switching
+    - FOV follows cursor
+    - Locks onto enemy head inside FOV
+    - Switch targets by moving mouse over a different enemy
+    - Ignores downed/ragdolled players
+    - Press X to toggle ON/OFF
 ]]
 
 local Players = game:GetService("Players")
@@ -21,19 +22,23 @@ local CONFIG = {
     MinFOV = 20,
     MaxFOV = 200,
     MaxDistance = 200,
-    ActivateKey = Enum.KeyCode.X,  -- Toggle silent aim on/off
+    ActivateKey = Enum.KeyCode.X,
+    LockStrength = 0.7,
+    SwitchCooldown = 0.3,
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
+    SwitchThreshold = 15, -- pixels; new target must be closer by this amount
 }
 
--- Silent aim state
-local silentActive = false
+-- State
+local isActive = false
 local currentTarget = nil
+local lastSwitchTime = 0
 
--- Create FOV GUI (same as before, but we'll remove the camera lock part)
+-- Create FOV GUI (same as before)
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -187,7 +192,7 @@ local function CreateFOVGUI()
         end)
     end
     
-    -- FOV Circle
+    -- FOV Circle (mouse-following)
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
@@ -232,7 +237,7 @@ local function CreateFOVGUI()
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
     statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "○ SILENT AIM OFF | FOV: " .. CONFIG.FOVRadius
+    statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
     statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
     statusLabel.TextSize = 13
     statusLabel.Font = Enum.Font.SourceSansBold
@@ -271,7 +276,7 @@ local function UpdateStatus(text)
     fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- Downed check
+-- ===== Downed check =====
 local function IsPlayerDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -287,7 +292,7 @@ local function IsPlayerDowned(character)
     return false
 end
 
--- Get targets relative to mouse position
+-- ===== Targets – use mouse position as center =====
 local function GetTargets(mousePos)
     local targets = {}
     local cameraPos = Camera.CFrame.Position
@@ -317,7 +322,51 @@ local function GetTargets(mousePos)
     return targets
 end
 
-local function GetBestTarget(targets, mousePos)
+-- ===== Sticky target selection with manual switching =====
+local function GetBestTarget(targets, mousePos, currentTarget)
+    -- Check if current target is still valid
+    if currentTarget then
+        local stillValid = false
+        for _, t in pairs(targets) do
+            if t.Player == currentTarget.Player then
+                local dist = (t.HeadScreenPos - mousePos).Magnitude
+                if dist <= CONFIG.FOVRadius then
+                    stillValid = true
+                    currentTarget.Distance = t.Distance
+                    currentTarget.HeadPosition = t.HeadPosition
+                    currentTarget.HeadScreenPos = t.HeadScreenPos
+                    break
+                end
+            end
+        end
+        if stillValid then
+            -- Current target is still in FOV. Check if user aims at another target.
+            local best, bestDist = nil, CONFIG.FOVRadius + 1
+            for _, t in pairs(targets) do
+                local d = (t.HeadScreenPos - mousePos).Magnitude
+                if d <= CONFIG.FOVRadius and d < bestDist then
+                    bestDist = d
+                    best = t
+                end
+            end
+            if best and best.Player ~= currentTarget.Player then
+                local currentDist = (currentTarget.HeadScreenPos - mousePos).Magnitude
+                -- Switch if new target is significantly closer (by threshold)
+                if bestDist < currentDist - CONFIG.SwitchThreshold then
+                    return best
+                else
+                    return currentTarget
+                end
+            else
+                return currentTarget
+            end
+        else
+            -- current target lost, fall through
+            currentTarget = nil
+        end
+    end
+    
+    -- No current target or it's invalid: find the closest target in FOV
     local best, bestDist = nil, CONFIG.FOVRadius + 1
     for _, target in pairs(targets) do
         local screenDist = (target.HeadScreenPos - mousePos).Magnitude
@@ -329,38 +378,11 @@ local function GetBestTarget(targets, mousePos)
     return best
 end
 
--- Silent aim shot: redirect bullet to head
-local function SilentShot(target)
-    if not target or not target.Head then return end
-    local headPos = target.HeadPosition
-    -- Create a dummy invisible part at head position to act as target for the tool
-    local dummy = Instance.new("Part")
-    dummy.Size = Vector3.new(1,1,1)
-    dummy.CFrame = CFrame.new(headPos)
-    dummy.Anchored = true
-    dummy.CanCollide = false
-    dummy.Transparency = 1
-    dummy.Name = "SilentAimDummy"
-    dummy.Parent = workspace
-    
-    -- Set Mouse target to dummy
-    Mouse.Target = dummy
-    Mouse.Hit = CFrame.new(headPos)
-    
-    -- Simulate firing (if tool uses Mouse.Button1Down, the click will be processed normally)
-    -- We also need to ensure the tool uses the Mouse.Target, which it should.
-    -- Optionally, we can force a tool activation if needed.
-    -- We'll let the actual click do the firing.
-    -- Clean up dummy after a short delay
-    task.delay(0.1, function()
-        dummy:Destroy()
-    end)
-end
+-- ===== Variables =====
+local isActive = false
+local currentTarget = nil
 
--- Variables
-local silentActive = false
-
--- Rotation loop
+-- ===== Rotation loop =====
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
@@ -373,16 +395,12 @@ RunService.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- Input: Toggle silent aim with X
+-- ===== Input handling =====
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.X then
-        silentActive = not silentActive
-        if silentActive then
-            UpdateStatus("● SILENT AIM ON")
-        else
-            UpdateStatus("○ SILENT AIM OFF")
-            currentTarget = nil
-        end
+        isActive = not isActive
+        UpdateStatus(isActive and "● AIMING" or "○ READY")
+        if not isActive then currentTarget = nil end
     end
     
     if input.KeyCode == Enum.KeyCode.F3 then
@@ -404,51 +422,65 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Intercept left click to apply silent aim
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and silentActive then
-        -- Get mouse position
-        local mouseX = Mouse.X
-        local mouseY = Mouse.Y
-        local mousePos = Vector2.new(mouseX, mouseY)
-        
-        -- Update FOV position (optional)
-        fovData.FOVFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
-        
-        -- Find target in FOV
-        local targets = GetTargets(mousePos)
-        local target = GetBestTarget(targets, mousePos)
-        if target then
-            currentTarget = target
-            SilentShot(target)
-            -- Visual feedback: flash status
-            UpdateStatus("● HEADSHOT!")
-            task.delay(0.5, function()
-                if silentActive then UpdateStatus("● SILENT AIM ON") end
-            end)
-        end
-    end
-end)
-
--- Update FOV position every frame (follows mouse)
+-- ===== Main aimlock loop (mouse-following FOV, sticky + manual switch) =====
 RunService.RenderStepped:Connect(function()
+    -- Update FOV position to follow mouse
     local mouseX = Mouse.X
     local mouseY = Mouse.Y
     fovData.FOVFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
     
-    -- Update status if silent is on and a target is in FOV (visual indicator)
-    if silentActive then
-        local targets = GetTargets(Vector2.new(mouseX, mouseY))
-        local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY))
-        if target then
-            -- Optionally, we could change the FOV color or status to show target lock
-            -- For now, keep status as is.
+    if not isActive then
+        if not fovData.StatusLabel.Text:find("READY") then UpdateStatus("○ READY") end
+        return
+    end
+    
+    if not Player.Character then return end
+    local humanoid = Player.Character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    
+    local mousePos = Vector2.new(mouseX, mouseY)
+    local targets = GetTargets(mousePos)
+    
+    if #targets == 0 then
+        if currentTarget then
+            currentTarget = nil
+            UpdateStatus("○ NO PLAYERS")
+        end
+        return
+    end
+    
+    -- Get target (sticky with manual switch)
+    local target = GetBestTarget(targets, mousePos, currentTarget)
+    if target then
+        if not currentTarget then
+            currentTarget = target
+        else
+            -- if target changed, update currentTarget
+            if target.Player ~= currentTarget.Player then
+                currentTarget = target
+            end
+        end
+        
+        -- Lock onto target
+        local headPos = currentTarget.HeadPosition
+        local camPos = Camera.CFrame.Position
+        local direction = (headPos - camPos).Unit
+        local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
+        
+        local statusText = "● " .. currentTarget.Player.Name
+        if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
+        statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
+        UpdateStatus(statusText)
+    else
+        if currentTarget then
+            currentTarget = nil
+            UpdateStatus("○ NO TARGET")
         end
     end
 end)
 
--- Cleanup
+-- ===== Cleanup =====
 Player.CharacterAdded:Connect(function()
     wait(0.5)
     if fovData.FOVFrame then
