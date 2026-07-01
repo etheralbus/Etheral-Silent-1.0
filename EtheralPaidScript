@@ -1,8 +1,8 @@
 --[[
-    Silent Aim System - Adaptive Tracking
-    - Fast tracking for moving targets
-    - Smooth for stationary targets
-    - No shake, no lag
+    Silent Aim System - Reliable, No Sky Lock
+    - Lock strength: 0.5 (first person), 0.35 (third person)
+    - No deadzone, no speed detection
+    - Clean, stable tracking
 ]]
 
 local Players = game:GetService("Players")
@@ -21,12 +21,8 @@ local CONFIG = {
     MaxFOV = 200,
     MaxDistance = 200,
     ActivateKey = Enum.KeyCode.X,
-    BaseLock = 0.25,            -- When target is still
-    MovingLock = 0.5,           -- When target is moving
-    FastLock = 0.7,             -- When target is moving fast
-    ThirdPersonBase = 0.18,
-    ThirdPersonMoving = 0.4,
-    ThirdPersonFast = 0.55,
+    FirstPersonLock = 0.5,
+    ThirdPersonLock = 0.35,
     SwitchCooldown = 0.1,
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
@@ -40,23 +36,7 @@ local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
 
--- Track target movement
-local targetHistory = {}
-local function GetTargetSpeed(target)
-    if not target then return 0 end
-    local now = tick()
-    local pos = target.HeadPosition
-    table.insert(targetHistory, {pos = pos, time = now})
-    if #targetHistory > 6 then table.remove(targetHistory, 1) end
-    if #targetHistory < 2 then return 0 end
-    local oldest = targetHistory[1]
-    local dt = now - oldest.time
-    if dt < 0.01 then return 0 end
-    local dist = (pos - oldest.pos).Magnitude
-    return dist / dt
-end
-
--- Create FOV GUI (same as before, no changes)
+-- Create FOV GUI (unchanged)
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -398,7 +378,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock loop (adaptive speed) =====
+-- ===== Main aimlock loop (simple, reliable) =====
 RunService.RenderStepped:Connect(function()
     -- Update FOV position to follow mouse
     local mouseX = Mouse.X
@@ -429,61 +409,36 @@ RunService.RenderStepped:Connect(function()
     if target then
         if not currentTarget or target.Player ~= currentTarget.Player then
             currentTarget = target
-            targetHistory = {}
         end
         
-        -- Get target speed
-        local speed = GetTargetSpeed(currentTarget)
-        local isThirdPerson = false
+        -- === Detect camera mode ===
         local characterHead = Player.Character and Player.Character:FindFirstChild("Head")
+        local isThirdPerson = false
         if characterHead then
             local camDist = (Camera.CFrame.Position - characterHead.Position).Magnitude
             isThirdPerson = camDist > 5
         end
         
-        -- Determine lock strength based on speed and mode
-        local lockStrength
-        if isThirdPerson then
-            if speed < 5 then
-                lockStrength = CONFIG.ThirdPersonBase
-            elseif speed < 20 then
-                lockStrength = CONFIG.ThirdPersonMoving
-            else
-                lockStrength = CONFIG.ThirdPersonFast
-            end
-        else
-            if speed < 5 then
-                lockStrength = CONFIG.BaseLock
-            elseif speed < 20 then
-                lockStrength = CONFIG.MovingLock
-            else
-                lockStrength = CONFIG.FastLock
-            end
-        end
+        -- Lock strength
+        local lockStrength = isThirdPerson and CONFIG.ThirdPersonLock or CONFIG.FirstPersonLock
         
-        -- Smoothly interpolate to avoid sudden jumps
+        -- Aim at head
         local headPos = currentTarget.HeadPosition
         local camPos = Camera.CFrame.Position
         local direction = (headPos - camPos).Unit
         local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
         
-        -- Apply lock with small deadzone (0.1 rad) to prevent micro-shake
-        local currentDir = Camera.CFrame.LookVector
-        local angleDiff = math.acos(math.clamp(currentDir:Dot(direction), -1, 1))
-        if angleDiff > math.rad(0.1) then
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
-        end
+        -- Apply smooth lock (no deadzone, no complex logic)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
         
         local statusText = "● " .. currentTarget.Player.Name
         if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
         statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
         if isThirdPerson then statusText = statusText .. " [3P]" end
-        if speed > 5 then statusText = statusText .. " ⚡" end
         UpdateStatus(statusText)
     else
         if currentTarget then
             currentTarget = nil
-            targetHistory = {}
             UpdateStatus("○ NO TARGET")
         end
     end
