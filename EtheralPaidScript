@@ -1,8 +1,8 @@
 --[[
-    Silent Aim System - Manual Target Switching
+    Silent Aim System - Easy Target Switching
+    - Switch threshold: 3 pixels (very sensitive)
     - FOV follows cursor
     - Locks onto enemy head inside FOV
-    - Switch targets by moving mouse over a different enemy
     - Ignores downed/ragdolled players
     - Press X to toggle ON/OFF
 ]]
@@ -30,15 +30,14 @@ local CONFIG = {
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
-    SwitchThreshold = 15, -- pixels; new target must be closer by this amount
+    SwitchThreshold = 3, -- Very low, so you can switch targets easily
 }
 
 -- State
 local isActive = false
 local currentTarget = nil
-local lastSwitchTime = 0
 
--- Create FOV GUI (same as before)
+-- Create FOV GUI
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -322,7 +321,7 @@ local function GetTargets(mousePos)
     return targets
 end
 
--- ===== Sticky target selection with manual switching =====
+-- ===== Sticky target selection with low threshold =====
 local function GetBestTarget(targets, mousePos, currentTarget)
     -- Check if current target is still valid
     if currentTarget then
@@ -340,7 +339,7 @@ local function GetBestTarget(targets, mousePos, currentTarget)
             end
         end
         if stillValid then
-            -- Current target is still in FOV. Check if user aims at another target.
+            -- Find the closest target to cursor
             local best, bestDist = nil, CONFIG.FOVRadius + 1
             for _, t in pairs(targets) do
                 local d = (t.HeadScreenPos - mousePos).Magnitude
@@ -351,7 +350,7 @@ local function GetBestTarget(targets, mousePos, currentTarget)
             end
             if best and best.Player ~= currentTarget.Player then
                 local currentDist = (currentTarget.HeadScreenPos - mousePos).Magnitude
-                -- Switch if new target is significantly closer (by threshold)
+                -- Switch if the new target is closer (by threshold)
                 if bestDist < currentDist - CONFIG.SwitchThreshold then
                     return best
                 else
@@ -361,7 +360,6 @@ local function GetBestTarget(targets, mousePos, currentTarget)
                 return currentTarget
             end
         else
-            -- current target lost, fall through
             currentTarget = nil
         end
     end
@@ -422,7 +420,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock loop (mouse-following FOV, sticky + manual switch) =====
+-- ===== Main aimlock loop (mouse-following FOV, easy switch) =====
 RunService.RenderStepped:Connect(function()
     -- Update FOV position to follow mouse
     local mouseX = Mouse.X
@@ -449,13 +447,12 @@ RunService.RenderStepped:Connect(function()
         return
     end
     
-    -- Get target (sticky with manual switch)
+    -- Get target (sticky with easy switching)
     local target = GetBestTarget(targets, mousePos, currentTarget)
     if target then
         if not currentTarget then
             currentTarget = target
         else
-            -- if target changed, update currentTarget
             if target.Player ~= currentTarget.Player then
                 currentTarget = target
             end
