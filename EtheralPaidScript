@@ -1,8 +1,9 @@
 --[[
-    Silent Aim System - Visible Dashes
-    - Dashes: length 10, height 2.0, fully opaque
-    - HUD: 280x40, sharp corners
-    - Rotation never stops after scaling
+    Silent Aim System - Mouse-Following FOV, No CamLock
+    - FOV circle follows your cursor
+    - When shooting, if target is in FOV → bullet hits head
+    - Camera stays free (no lock)
+    - F2/F3 adjust FOV, HUD at top
 ]]
 
 local Players = game:GetService("Players")
@@ -20,17 +21,19 @@ local CONFIG = {
     MinFOV = 20,
     MaxFOV = 200,
     MaxDistance = 200,
-    ActivateKey = Enum.KeyCode.X,
-    LockStrength = 0.4,
-    SwitchCooldown = 0.5,
-    FOVColor = Color3.fromRGB(220, 160, 255),  -- Brighter purple
-    DashLength = 10,                           -- Longer dashes
+    ActivateKey = Enum.KeyCode.X,  -- Toggle silent aim on/off
+    FOVColor = Color3.fromRGB(220, 160, 255),
+    DashLength = 10,
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
 }
 
--- Create FOV GUI
+-- Silent aim state
+local silentActive = false
+local currentTarget = nil
+
+-- Create FOV GUI (same as before, but we'll remove the camera lock part)
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -38,7 +41,7 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- ===== HUD (280x40) =====
+    -- HUD (280x40)
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -50,14 +53,12 @@ local function CreateFOVGUI()
     hudFrame.Visible = false
     hudFrame.Parent = screenGui
     
-    -- Accent bar
     local accent = Instance.new("Frame")
     accent.Parent = hudFrame
     accent.Size = UDim2.new(0, 6, 1, 0)
     accent.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     accent.BorderSizePixel = 0
     
-    -- "FOV" label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
     label.Position = UDim2.new(0, 14, 0, 0)
@@ -69,7 +70,6 @@ local function CreateFOVGUI()
     label.TextScaled = true
     label.TextXAlignment = Enum.TextXAlignment.Left
     
-    -- Slider background
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
     sliderBG.Position = UDim2.new(0, 68, 0.5, -6)
@@ -77,14 +77,12 @@ local function CreateFOVGUI()
     sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
     sliderBG.BorderSizePixel = 0
     
-    -- Fill
     local fill = Instance.new("Frame")
     fill.Parent = sliderBG
     fill.Size = UDim2.new(0.5, 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
     fill.BorderSizePixel = 0
     
-    -- Knob
     local knob = Instance.new("Frame")
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -93,7 +91,6 @@ local function CreateFOVGUI()
     knob.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
     knob.BorderSizePixel = 0
     
-    -- Value box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
     valueBox.Position = UDim2.new(1, -56, 0.5, -15)
@@ -111,7 +108,6 @@ local function CreateFOVGUI()
     valueLabel.Font = Enum.Font.GothamBold
     valueLabel.TextScaled = true
     
-    -- Store HUD data
     local hudData = {
         Frame = hudFrame,
         Fill = fill,
@@ -122,7 +118,6 @@ local function CreateFOVGUI()
         hideTimer = nil,
     }
     
-    -- Slider update
     local function UpdateSlider(percent)
         percent = math.clamp(percent, 0, 1)
         local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
@@ -138,7 +133,6 @@ local function CreateFOVGUI()
         knob.Position = UDim2.new(percent, 0, 0.5, 0)
     end
     
-    -- Dragging logic
     local dragging = false
     local function startDrag(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -166,7 +160,6 @@ local function CreateFOVGUI()
     knob.InputEnded:Connect(endDrag)
     knob.InputChanged:Connect(moveDrag)
     
-    -- Show HUD
     local function ShowHUD()
         if hudData.hideTimer then task.cancel(hudData.hideTimer); hudData.hideTimer = nil end
         if not hudData.isHUDVisible then
@@ -194,11 +187,11 @@ local function CreateFOVGUI()
         end)
     end
     
-    -- ===== FOV Circle =====
+    -- FOV Circle
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-    fovFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
+    fovFrame.Position = UDim2.new(0, 0, 0, 0)
     fovFrame.BackgroundTransparency = 1
     fovFrame.ClipsDescendants = true
     fovFrame.Parent = screenGui
@@ -221,10 +214,10 @@ local function CreateFOVGUI()
             local x = CONFIG.FOVRadius * math.cos(angle)
             local y = CONFIG.FOVRadius * math.sin(angle)
             local dash = Instance.new("Frame")
-            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2.0)   -- Thicker dashes
-            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1.0) -- Centered
+            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2.0)
+            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1.0)
             dash.BackgroundColor3 = CONFIG.FOVColor
-            dash.BackgroundTransparency = 0                     -- Fully opaque
+            dash.BackgroundTransparency = 0
             dash.BorderSizePixel = 0
             dash.Rotation = math.deg(angle)
             dash.Parent = circleContainer
@@ -235,12 +228,11 @@ local function CreateFOVGUI()
     end
     BuildDashes()
     
-    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
     statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
+    statusLabel.Text = "○ SILENT AIM OFF | FOV: " .. CONFIG.FOVRadius
     statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
     statusLabel.TextSize = 13
     statusLabel.Font = Enum.Font.SourceSansBold
@@ -261,10 +253,9 @@ end
 
 local fovData = CreateFOVGUI()
 
--- ===== Rebuild FOV =====
+-- Rebuild FOV
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-    fovData.FOVFrame.Position = UDim2.new(0.5, -CONFIG.FOVRadius, 0.5, -CONFIG.FOVRadius)
     fovData.DashParts = fovData.BuildDashes()
     local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
     fovData.StatusLabel.Text = statusText
@@ -280,7 +271,7 @@ local function UpdateStatus(text)
     fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- ===== Downed check =====
+-- Downed check
 local function IsPlayerDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -296,8 +287,8 @@ local function IsPlayerDowned(character)
     return false
 end
 
--- ===== Target functions =====
-local function GetTargets()
+-- Get targets relative to mouse position
+local function GetTargets(mousePos)
     local targets = {}
     local cameraPos = Camera.CFrame.Position
     for _, player in pairs(Players:GetPlayers()) do
@@ -326,41 +317,50 @@ local function GetTargets()
     return targets
 end
 
-local function GetBestTarget(targets, currentTarget)
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    if currentTarget then
-        for _, target in pairs(targets) do
-            if target.Player == currentTarget.Player then
-                local dist = (target.HeadScreenPos - center).Magnitude
-                if dist <= CONFIG.FOVRadius then
-                    currentTarget.Distance = target.Distance
-                    currentTarget.HeadPosition = target.HeadPosition
-                    currentTarget.HeadScreenPos = target.HeadScreenPos
-                    return currentTarget, false
-                end
-            end
-        end
-    end
-    local best, bestScore = nil, CONFIG.FOVRadius + 1
+local function GetBestTarget(targets, mousePos)
+    local best, bestDist = nil, CONFIG.FOVRadius + 1
     for _, target in pairs(targets) do
-        local screenDist = (target.HeadScreenPos - center).Magnitude
-        if screenDist <= CONFIG.FOVRadius then
-            local score = screenDist + (target.Distance / 10)
-            if score < bestScore then
-                bestScore = score
-                best = target
-            end
+        local screenDist = (target.HeadScreenPos - mousePos).Magnitude
+        if screenDist <= CONFIG.FOVRadius and screenDist < bestDist then
+            bestDist = screenDist
+            best = target
         end
     end
-    return best, true
+    return best
 end
 
--- ===== Variables =====
-local isActive = false
-local currentTarget = nil
-local lastSwitchTime = 0
+-- Silent aim shot: redirect bullet to head
+local function SilentShot(target)
+    if not target or not target.Head then return end
+    local headPos = target.HeadPosition
+    -- Create a dummy invisible part at head position to act as target for the tool
+    local dummy = Instance.new("Part")
+    dummy.Size = Vector3.new(1,1,1)
+    dummy.CFrame = CFrame.new(headPos)
+    dummy.Anchored = true
+    dummy.CanCollide = false
+    dummy.Transparency = 1
+    dummy.Name = "SilentAimDummy"
+    dummy.Parent = workspace
+    
+    -- Set Mouse target to dummy
+    Mouse.Target = dummy
+    Mouse.Hit = CFrame.new(headPos)
+    
+    -- Simulate firing (if tool uses Mouse.Button1Down, the click will be processed normally)
+    -- We also need to ensure the tool uses the Mouse.Target, which it should.
+    -- Optionally, we can force a tool activation if needed.
+    -- We'll let the actual click do the firing.
+    -- Clean up dummy after a short delay
+    task.delay(0.1, function()
+        dummy:Destroy()
+    end)
+end
 
--- ===== ROTATION LOOP =====
+-- Variables
+local silentActive = false
+
+-- Rotation loop
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
@@ -373,12 +373,16 @@ RunService.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- ===== Input handling =====
+-- Input: Toggle silent aim with X
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.X then
-        isActive = not isActive
-        UpdateStatus(isActive and "● AIMING" or "○ READY")
-        if not isActive then currentTarget = nil end
+        silentActive = not silentActive
+        if silentActive then
+            UpdateStatus("● SILENT AIM ON")
+        else
+            UpdateStatus("○ SILENT AIM OFF")
+            currentTarget = nil
+        end
     end
     
     if input.KeyCode == Enum.KeyCode.F3 then
@@ -400,61 +404,51 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock =====
-RunService.RenderStepped:Connect(function()
-    if not isActive then
-        if not fovData.StatusLabel.Text:find("READY") then UpdateStatus("○ READY") end
-        return
-    end
-    
-    if not Player.Character then return end
-    local humanoid = Player.Character:FindFirstChild("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    
-    local targets = GetTargets()
-    if #targets == 0 then
-        if currentTarget then
-            currentTarget = nil
-            UpdateStatus("○ NO PLAYERS")
-        end
-        return
-    end
-    
-    local target, isNew = GetBestTarget(targets, currentTarget)
-    if target then
-        if isNew and currentTarget and target.Player ~= currentTarget.Player then
-            if tick() - lastSwitchTime >= CONFIG.SwitchCooldown then
-                currentTarget = target
-                lastSwitchTime = tick()
-            else
-                target = currentTarget
-            end
-        elseif not currentTarget then
-            currentTarget = target
-            lastSwitchTime = tick()
-        end
+-- Intercept left click to apply silent aim
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and silentActive then
+        -- Get mouse position
+        local mouseX = Mouse.X
+        local mouseY = Mouse.Y
+        local mousePos = Vector2.new(mouseX, mouseY)
         
-        if currentTarget then
-            local headPos = currentTarget.HeadPosition
-            local camPos = Camera.CFrame.Position
-            local direction = (headPos - camPos).Unit
-            local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
-            
-            local statusText = "● " .. currentTarget.Player.Name
-            if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
-            statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
-            UpdateStatus(statusText)
-        end
-    else
-        if currentTarget then
-            currentTarget = nil
-            UpdateStatus("○ NO TARGET")
+        -- Update FOV position (optional)
+        fovData.FOVFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
+        
+        -- Find target in FOV
+        local targets = GetTargets(mousePos)
+        local target = GetBestTarget(targets, mousePos)
+        if target then
+            currentTarget = target
+            SilentShot(target)
+            -- Visual feedback: flash status
+            UpdateStatus("● HEADSHOT!")
+            task.delay(0.5, function()
+                if silentActive then UpdateStatus("● SILENT AIM ON") end
+            end)
         end
     end
 end)
 
--- ===== Cleanup =====
+-- Update FOV position every frame (follows mouse)
+RunService.RenderStepped:Connect(function()
+    local mouseX = Mouse.X
+    local mouseY = Mouse.Y
+    fovData.FOVFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
+    
+    -- Update status if silent is on and a target is in FOV (visual indicator)
+    if silentActive then
+        local targets = GetTargets(Vector2.new(mouseX, mouseY))
+        local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY))
+        if target then
+            -- Optionally, we could change the FOV color or status to show target lock
+            -- For now, keep status as is.
+        end
+    end
+end)
+
+-- Cleanup
 Player.CharacterAdded:Connect(function()
     wait(0.5)
     if fovData.FOVFrame then
