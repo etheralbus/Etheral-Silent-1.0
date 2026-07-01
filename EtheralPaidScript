@@ -1,10 +1,8 @@
 --[[
-    Silent Aim System - Easy Target Switching
-    - Switch threshold: 3 pixels (very sensitive)
-    - FOV follows cursor
-    - Locks onto enemy head inside FOV
-    - Ignores downed/ragdolled players
-    - Press X to toggle ON/OFF
+    Silent Aim System - Third Person Friendly
+    - Auto-detects third person and reduces lock strength
+    - Deadzone to prevent jitter
+    - Smooth, stable tracking in any camera mode
 ]]
 
 local Players = game:GetService("Players")
@@ -23,21 +21,23 @@ local CONFIG = {
     MaxFOV = 200,
     MaxDistance = 200,
     ActivateKey = Enum.KeyCode.X,
-    LockStrength = 0.7,
-    SwitchCooldown = 0.3,
+    BaseLockStrength = 0.7,       -- For first person
+    ThirdPersonLockStrength = 0.3, -- For third person (smoother)
+    SwitchCooldown = 0.1,
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
-    SwitchThreshold = 3, -- Very low, so you can switch targets easily
+    SwitchThreshold = 1,
 }
 
 -- State
 local isActive = false
 local currentTarget = nil
+local lastSwitchTime = 0
 
--- Create FOV GUI
+-- Create FOV GUI (same as before, unchanged)
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -321,56 +321,14 @@ local function GetTargets(mousePos)
     return targets
 end
 
--- ===== Sticky target selection with low threshold =====
-local function GetBestTarget(targets, mousePos, currentTarget)
-    -- Check if current target is still valid
-    if currentTarget then
-        local stillValid = false
-        for _, t in pairs(targets) do
-            if t.Player == currentTarget.Player then
-                local dist = (t.HeadScreenPos - mousePos).Magnitude
-                if dist <= CONFIG.FOVRadius then
-                    stillValid = true
-                    currentTarget.Distance = t.Distance
-                    currentTarget.HeadPosition = t.HeadPosition
-                    currentTarget.HeadScreenPos = t.HeadScreenPos
-                    break
-                end
-            end
-        end
-        if stillValid then
-            -- Find the closest target to cursor
-            local best, bestDist = nil, CONFIG.FOVRadius + 1
-            for _, t in pairs(targets) do
-                local d = (t.HeadScreenPos - mousePos).Magnitude
-                if d <= CONFIG.FOVRadius and d < bestDist then
-                    bestDist = d
-                    best = t
-                end
-            end
-            if best and best.Player ~= currentTarget.Player then
-                local currentDist = (currentTarget.HeadScreenPos - mousePos).Magnitude
-                -- Switch if the new target is closer (by threshold)
-                if bestDist < currentDist - CONFIG.SwitchThreshold then
-                    return best
-                else
-                    return currentTarget
-                end
-            else
-                return currentTarget
-            end
-        else
-            currentTarget = nil
-        end
-    end
-    
-    -- No current target or it's invalid: find the closest target in FOV
+-- ===== Instant target selection =====
+local function GetBestTarget(targets, mousePos)
     local best, bestDist = nil, CONFIG.FOVRadius + 1
-    for _, target in pairs(targets) do
-        local screenDist = (target.HeadScreenPos - mousePos).Magnitude
-        if screenDist <= CONFIG.FOVRadius and screenDist < bestDist then
-            bestDist = screenDist
-            best = target
+    for _, t in pairs(targets) do
+        local d = (t.HeadScreenPos - mousePos).Magnitude
+        if d <= CONFIG.FOVRadius and d < bestDist then
+            bestDist = d
+            best = t
         end
     end
     return best
@@ -379,6 +337,7 @@ end
 -- ===== Variables =====
 local isActive = false
 local currentTarget = nil
+local lastSwitchTime = 0
 
 -- ===== Rotation loop =====
 RunService.Heartbeat:Connect(function(deltaTime)
@@ -420,7 +379,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock loop (mouse-following FOV, easy switch) =====
+-- ===== Main aimlock loop (with third‑person stabilisation) =====
 RunService.RenderStepped:Connect(function()
     -- Update FOV position to follow mouse
     local mouseX = Mouse.X
@@ -447,27 +406,39 @@ RunService.RenderStepped:Connect(function()
         return
     end
     
-    -- Get target (sticky with easy switching)
-    local target = GetBestTarget(targets, mousePos, currentTarget)
+    local target = GetBestTarget(targets, mousePos)
     if target then
-        if not currentTarget then
+        if not currentTarget or target.Player ~= currentTarget.Player then
             currentTarget = target
-        else
-            if target.Player ~= currentTarget.Player then
-                currentTarget = target
-            end
         end
         
-        -- Lock onto target
+        -- === Third‑person detection ===
         local headPos = currentTarget.HeadPosition
         local camPos = Camera.CFrame.Position
+        
+        -- Calculate distance from camera to the player's head (to detect third person)
+        local characterHead = Player.Character and Player.Character:FindFirstChild("Head")
+        local camDist = characterHead and (camPos - characterHead.Position).Magnitude or 0
+        local isThirdPerson = camDist > 5
+        
+        -- Choose lock strength
+        local lockStrength = isThirdPerson and CONFIG.ThirdPersonLockStrength or CONFIG.BaseLockStrength
+        
+        -- Direction to target
         local direction = (headPos - camPos).Unit
         local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
-        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, CONFIG.LockStrength)
+        
+        -- Add a small deadzone to prevent jitter
+        local currentDir = Camera.CFrame.LookVector
+        local angleDiff = math.acos(math.clamp(currentDir:Dot(direction), -1, 1))
+        if angleDiff > math.rad(0.5) then -- Only apply if misalignment > 0.5 degrees
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
+        end
         
         local statusText = "● " .. currentTarget.Player.Name
         if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
         statusText = statusText .. " (" .. math.floor(currentTarget.Distance) .. "s)"
+        if isThirdPerson then statusText = statusText .. " [3P]" end
         UpdateStatus(statusText)
     else
         if currentTarget then
