@@ -1,8 +1,8 @@
 --[[
-    Silent Aim System - Third Person Friendly
-    - Auto-detects third person and reduces lock strength
-    - Deadzone to prevent jitter
-    - Smooth, stable tracking in any camera mode
+    Silent Aim System - Smooth Tracking (No Shake)
+    - Lock strength: 0.4 (first person), 0.25 (third person)
+    - Continuous smoothing (no deadzone)
+    - Stable and responsive
 ]]
 
 local Players = game:GetService("Players")
@@ -21,15 +21,14 @@ local CONFIG = {
     MaxFOV = 200,
     MaxDistance = 200,
     ActivateKey = Enum.KeyCode.X,
-    BaseLockStrength = 0.7,       -- For first person
-    ThirdPersonLockStrength = 0.3, -- For third person (smoother)
+    FirstPersonLock = 0.4,
+    ThirdPersonLock = 0.25,
     SwitchCooldown = 0.1,
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
     GapLength = 12,
     RotationSpeed = 180,
     HUDAutoHideDelay = 5,
-    SwitchThreshold = 1,
 }
 
 -- State
@@ -37,7 +36,7 @@ local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
 
--- Create FOV GUI (same as before, unchanged)
+-- Create FOV GUI (same as before, no changes needed)
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -379,7 +378,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock loop (with third‑person stabilisation) =====
+-- ===== Main aimlock loop (smooth tracking, no deadzone) =====
 RunService.RenderStepped:Connect(function()
     -- Update FOV position to follow mouse
     local mouseX = Mouse.X
@@ -412,28 +411,22 @@ RunService.RenderStepped:Connect(function()
             currentTarget = target
         end
         
-        -- === Third‑person detection ===
-        local headPos = currentTarget.HeadPosition
-        local camPos = Camera.CFrame.Position
-        
-        -- Calculate distance from camera to the player's head (to detect third person)
+        -- === Detect camera mode ===
         local characterHead = Player.Character and Player.Character:FindFirstChild("Head")
-        local camDist = characterHead and (camPos - characterHead.Position).Magnitude or 0
+        local camDist = characterHead and (Camera.CFrame.Position - characterHead.Position).Magnitude or 0
         local isThirdPerson = camDist > 5
         
-        -- Choose lock strength
-        local lockStrength = isThirdPerson and CONFIG.ThirdPersonLockStrength or CONFIG.BaseLockStrength
+        -- Pick lock strength
+        local lockStrength = isThirdPerson and CONFIG.ThirdPersonLock or CONFIG.FirstPersonLock
         
-        -- Direction to target
+        -- Aim at head
+        local headPos = currentTarget.HeadPosition
+        local camPos = Camera.CFrame.Position
         local direction = (headPos - camPos).Unit
         local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
         
-        -- Add a small deadzone to prevent jitter
-        local currentDir = Camera.CFrame.LookVector
-        local angleDiff = math.acos(math.clamp(currentDir:Dot(direction), -1, 1))
-        if angleDiff > math.rad(0.5) then -- Only apply if misalignment > 0.5 degrees
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
-        end
+        -- Apply continuous smoothing (no deadzone to avoid jitter)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
         
         local statusText = "● " .. currentTarget.Player.Name
         if currentTarget.Distance <= 50 then statusText = statusText .. " CLOSE" end
