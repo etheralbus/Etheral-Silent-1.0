@@ -1,8 +1,8 @@
 --[[
-    Silent Aim System - Reliable, No Sky Lock
-    - Lock strength: 0.5 (first person), 0.35 (third person)
-    - No deadzone, no speed detection
-    - Clean, stable tracking
+    Silent Aim System - New FOV HUD
+    - Arcade-style HUD with slider
+    - F2/F3 adjust FOV, slider works
+    - X toggles aimlock ON/OFF
 ]]
 
 local Players = game:GetService("Players")
@@ -36,7 +36,7 @@ local isActive = false
 local currentTarget = nil
 local lastSwitchTime = 0
 
--- Create FOV GUI (unchanged)
+-- Create FOV GUI with new HUD
 local function CreateFOVGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
@@ -44,83 +44,103 @@ local function CreateFOVGUI()
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
     
-    -- HUD (280x40)
+    -- ===== NEW HUD =====
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    hudFrame.Position = UDim2.new(0.5, 0, 0.08, 0)
-    hudFrame.Size = UDim2.new(0, 280, 0, 40)
-    hudFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-    hudFrame.BorderSizePixel = 1
-    hudFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
+    hudFrame.Position = UDim2.new(0.5, 0, 0.82, 0)   -- matches the pasted code
+    hudFrame.Size = UDim2.new(0, 650, 0, 90)
+    hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    hudFrame.BorderSizePixel = 4
+    hudFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
     hudFrame.Visible = false
     hudFrame.Parent = screenGui
     
+    local stroke = Instance.new("UIStroke")
+    stroke.Parent = hudFrame
+    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(120, 120, 120)
+    
+    -- Left purple accent bar
     local accent = Instance.new("Frame")
     accent.Parent = hudFrame
-    accent.Size = UDim2.new(0, 6, 1, 0)
-    accent.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
-    accent.BorderSizePixel = 0
+    accent.Position = UDim2.new(0, 12, 0, 12)
+    accent.Size = UDim2.new(0, 28, 1, -24)
+    accent.BackgroundColor3 = Color3.fromRGB(145, 75, 255)
+    accent.BorderSizePixel = 3
+    accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
     
+    -- "FOV" label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
-    label.Position = UDim2.new(0, 14, 0, 0)
-    label.Size = UDim2.new(0, 44, 1, 0)
     label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 70, 0, 0)
+    label.Size = UDim2.new(0, 120, 1, 0)
     label.Text = "FOV"
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.GothamBold
+    label.Font = Enum.Font.Arcade
     label.TextScaled = true
-    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextColor3 = Color3.fromRGB(240, 240, 240)
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     
+    -- Slider background
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
-    sliderBG.Position = UDim2.new(0, 68, 0.5, -6)
-    sliderBG.Size = UDim2.new(0, 90, 0, 12)
+    sliderBG.Position = UDim2.new(0, 210, 0.5, -11)
+    sliderBG.Size = UDim2.new(0, 320, 0, 22)
     sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-    sliderBG.BorderSizePixel = 0
+    sliderBG.BorderSizePixel = 3
+    sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
     
+    -- Fill
     local fill = Instance.new("Frame")
     fill.Parent = sliderBG
-    fill.Size = UDim2.new(0.5, 0, 1, 0)
+    fill.Size = UDim2.new(0.48, 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
     fill.BorderSizePixel = 0
     
+    -- Knob
     local knob = Instance.new("Frame")
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
-    knob.Position = UDim2.new(0.5, 0, 0.5, 0)
-    knob.Size = UDim2.new(0, 14, 0, 20)
-    knob.BackgroundColor3 = Color3.fromRGB(132, 74, 220)
-    knob.BorderSizePixel = 0
+    knob.Position = UDim2.new(0.48, 0, 0.5, 0)
+    knob.Size = UDim2.new(0, 24, 0, 36)
+    knob.BackgroundColor3 = Color3.fromRGB(155, 90, 255)
+    knob.BorderSizePixel = 3
+    knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
     
+    -- Value box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
-    valueBox.Position = UDim2.new(1, -56, 0.5, -15)
-    valueBox.Size = UDim2.new(0, 44, 0, 30)
-    valueBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    valueBox.BorderSizePixel = 1
-    valueBox.BorderColor3 = Color3.fromRGB(132, 74, 220)
+    valueBox.Position = UDim2.new(1, -100, 0.5, -25)
+    valueBox.Size = UDim2.new(0, 75, 0, 50)
+    valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    valueBox.BorderSizePixel = 3
+    valueBox.BorderColor3 = Color3.fromRGB(150, 85, 255)
     
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Parent = valueBox
-    valueLabel.Size = UDim2.fromScale(1, 1)
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = "90"
-    valueLabel.TextColor3 = Color3.fromRGB(150, 85, 255)
-    valueLabel.Font = Enum.Font.GothamBold
-    valueLabel.TextScaled = true
+    local number = Instance.new("TextLabel")
+    number.Parent = valueBox
+    number.BackgroundTransparency = 1
+    number.Size = UDim2.fromScale(1, 1)
+    number.Font = Enum.Font.Arcade
+    number.TextScaled = true
+    number.Text = "90"
+    number.TextColor3 = Color3.fromRGB(150, 85, 255)
+    number.TextStrokeTransparency = 0
+    number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     
+    -- Store HUD references
     local hudData = {
         Frame = hudFrame,
         Fill = fill,
         Knob = knob,
-        ValueLabel = valueLabel,
+        Number = number,
         SliderBG = sliderBG,
         isHUDVisible = false,
         hideTimer = nil,
     }
     
+    -- Slider update function
     local function UpdateSlider(percent)
         percent = math.clamp(percent, 0, 1)
         local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
@@ -128,7 +148,7 @@ local function CreateFOVGUI()
         if newFOV ~= CONFIG.FOVRadius then
             CONFIG.FOVRadius = newFOV
             RebuildFOV()
-            valueLabel.Text = tostring(newFOV)
+            number.Text = tostring(newFOV)
             local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
             fovData.StatusLabel.Text = statusText
         end
@@ -136,6 +156,7 @@ local function CreateFOVGUI()
         knob.Position = UDim2.new(percent, 0, 0.5, 0)
     end
     
+    -- Dragging logic
     local dragging = false
     local function startDrag(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -163,21 +184,25 @@ local function CreateFOVGUI()
     knob.InputEnded:Connect(endDrag)
     knob.InputChanged:Connect(moveDrag)
     
+    -- Show/Hide HUD functions
     local function ShowHUD()
         if hudData.hideTimer then task.cancel(hudData.hideTimer); hudData.hideTimer = nil end
         if not hudData.isHUDVisible then
             hudFrame.Visible = true
+            -- Start hidden above screen (optional roll animation)
             hudFrame.Position = UDim2.new(0.5, 0, -0.12, 0)
             local rollDown = TweenService:Create(hudFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(0.5, 0, 0.08, 0)
+                Position = UDim2.new(0.5, 0, 0.82, 0)
             })
             rollDown:Play()
             hudData.isHUDVisible = true
         end
+        -- Update slider to match current FOV
         local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
         hudData.Fill.Size = UDim2.new(percent, 0, 1, 0)
         hudData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
-        hudData.ValueLabel.Text = tostring(CONFIG.FOVRadius)
+        hudData.Number.Text = tostring(CONFIG.FOVRadius)
+        -- Reset hide timer
         hudData.hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
             local rollUp = TweenService:Create(hudFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                 Position = UDim2.new(0.5, 0, -0.12, 0)
@@ -190,11 +215,11 @@ local function CreateFOVGUI()
         end)
     end
     
-    -- FOV Circle (mouse-following)
+    -- ===== FOV Circle (unchanged) =====
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-    fovFrame.Position = UDim2.new(0, 0, 0, 0)
+    fovFrame.Position = UDim2.new(0, 0, 0, 0)  -- will be updated to mouse position
     fovFrame.BackgroundTransparency = 1
     fovFrame.ClipsDescendants = true
     fovFrame.Parent = screenGui
@@ -231,6 +256,7 @@ local function CreateFOVGUI()
     end
     BuildDashes()
     
+    -- Status label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
     statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
@@ -256,7 +282,7 @@ end
 
 local fovData = CreateFOVGUI()
 
--- Rebuild FOV
+-- ===== Rebuild FOV =====
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
     fovData.DashParts = fovData.BuildDashes()
@@ -266,7 +292,7 @@ local function RebuildFOV()
         local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
         fovData.HUDData.Fill.Size = UDim2.new(percent, 0, 1, 0)
         fovData.HUDData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
-        fovData.HUDData.ValueLabel.Text = tostring(CONFIG.FOVRadius)
+        fovData.HUDData.Number.Text = tostring(CONFIG.FOVRadius)
     end
 end
 
@@ -378,7 +404,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main aimlock loop (simple, reliable) =====
+-- ===== Main aimlock loop =====
 RunService.RenderStepped:Connect(function()
     -- Update FOV position to follow mouse
     local mouseX = Mouse.X
@@ -411,7 +437,7 @@ RunService.RenderStepped:Connect(function()
             currentTarget = target
         end
         
-        -- === Detect camera mode ===
+        -- Detect camera mode
         local characterHead = Player.Character and Player.Character:FindFirstChild("Head")
         local isThirdPerson = false
         if characterHead then
@@ -419,7 +445,6 @@ RunService.RenderStepped:Connect(function()
             isThirdPerson = camDist > 5
         end
         
-        -- Lock strength
         local lockStrength = isThirdPerson and CONFIG.ThirdPersonLock or CONFIG.FirstPersonLock
         
         -- Aim at head
@@ -428,7 +453,7 @@ RunService.RenderStepped:Connect(function()
         local direction = (headPos - camPos).Unit
         local targetCFrame = CFrame.lookAt(camPos, camPos + direction)
         
-        -- Apply smooth lock (no deadzone, no complex logic)
+        -- Apply smooth lock
         Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lockStrength)
         
         local statusText = "● " .. currentTarget.Player.Name
