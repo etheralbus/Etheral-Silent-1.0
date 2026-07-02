@@ -1,149 +1,62 @@
---[[
-    Modern BodyGyro Aimlock with FOV Circle
-    - X to toggle
-    - F2/F3 to adjust FOV
-    - Rotating FOV circle follows mouse
-    - Error-proof with pcall
-]]
-
+-- MINIMAL WORKING SCRIPT (with prints)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local Camera = Workspace.CurrentCamera
+local Camera = workspace.CurrentCamera
 
 local Player = Players.LocalPlayer
-if not Player then
-    warn("No LocalPlayer")
-    return
-end
+print("1. Player found:", Player and Player.Name)
 
--- Configuration
-local CONFIG = {
-    FOVRadius = 90,
-    MinFOV = 20,
-    MaxFOV = 200,
-    MaxDistance = 200,
-    LockStrength = 0.25,
-    MaxTorque = 600,
-    FOVColor = Color3.fromRGB(220, 160, 255),
-    DashLength = 10,
-    GapLength = 12,
-    RotationSpeed = 180,
-}
+-- GUI
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FOV"
+screenGui.Parent = PlayerGui
+print("2. ScreenGui created")
+
+-- FOV Circle
+local FOVRadius = 90
+local fovFrame = Instance.new("Frame")
+fovFrame.Size = UDim2.new(0, FOVRadius*2, 0, FOVRadius*2)
+fovFrame.Position = UDim2.new(0,0,0,0)
+fovFrame.BackgroundTransparency = 1
+fovFrame.Parent = screenGui
+print("3. fovFrame created")
+
+-- Dashes
+for i=1,20 do
+    local angle = (i/20)*2*math.pi
+    local x = FOVRadius*math.cos(angle)
+    local y = FOVRadius*math.sin(angle)
+    local dash = Instance.new("Frame")
+    dash.Size = UDim2.new(0,8,0,2)
+    dash.Position = UDim2.new(0.5, x-4, 0.5, y-1)
+    dash.BackgroundColor3 = Color3.fromRGB(220,160,255)
+    dash.BackgroundTransparency = 0
+    dash.Rotation = math.deg(angle)
+    dash.Parent = fovFrame
+end
+print("4. Dashes created")
+
+-- Status
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0,200,0,25)
+statusLabel.Position = UDim2.new(0.5,-100,1.2,0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "○ READY"
+statusLabel.TextColor3 = Color3.fromRGB(180,120,210)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Parent = fovFrame
+print("5. Status label created")
 
 -- State
 local isActive = false
 local currentTarget = nil
 local gyro = nil
 local torso = nil
-local fovFrame = nil
-local statusLabel = nil
-local dashParts = {}
-local rotation = 0
 
--- ===== SAFE GUI CREATION =====
-local function SetupGUI()
-    local success, err = pcall(function()
-        local PlayerGui = Player:WaitForChild("PlayerGui", 3)
-        if not PlayerGui then
-            warn("PlayerGui not found")
-            return
-        end
-
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "AimlockGUI"
-        screenGui.ResetOnSpawn = false
-        screenGui.IgnoreGuiInset = true
-        screenGui.Parent = PlayerGui
-
-        -- FOV Frame
-        fovFrame = Instance.new("Frame")
-        fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-        fovFrame.Position = UDim2.new(0, 0, 0, 0)
-        fovFrame.BackgroundTransparency = 1
-        fovFrame.ClipsDescendants = true
-        fovFrame.Parent = screenGui
-
-        local circleContainer = Instance.new("Frame")
-        circleContainer.Size = UDim2.new(1, 0, 1, 0)
-        circleContainer.Position = UDim2.new(0, 0, 0, 0)
-        circleContainer.BackgroundTransparency = 1
-        circleContainer.Parent = fovFrame
-
-        -- Build dashes
-        local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
-        local angleStep = (2 * math.pi) / numDashes
-        for i = 1, numDashes do
-            local angle = i * angleStep
-            local x = CONFIG.FOVRadius * math.cos(angle)
-            local y = CONFIG.FOVRadius * math.sin(angle)
-            local dash = Instance.new("Frame")
-            dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2)
-            dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
-            dash.BackgroundColor3 = CONFIG.FOVColor
-            dash.BackgroundTransparency = 0
-            dash.BorderSizePixel = 0
-            dash.Rotation = math.deg(angle)
-            dash.Parent = circleContainer
-            table.insert(dashParts, { Frame = dash, Angle = angle })
-        end
-
-        -- Status Label
-        statusLabel = Instance.new("TextLabel")
-        statusLabel.Size = UDim2.new(0, 280, 0, 25)
-        statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
-        statusLabel.BackgroundTransparency = 1
-        statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
-        statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
-        statusLabel.TextSize = 13
-        statusLabel.Font = Enum.Font.SourceSansBold
-        statusLabel.Parent = fovFrame
-
-        print("GUI created successfully")
-    end)
-    if not success then
-        warn("GUI setup error:", err)
-    end
-end
-
--- ===== UPDATE FOV =====
-local function UpdateFOV(newSize)
-    newSize = math.clamp(newSize, CONFIG.MinFOV, CONFIG.MaxFOV)
-    if newSize == CONFIG.FOVRadius then return end
-    CONFIG.FOVRadius = newSize
-    if fovFrame then
-        fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-        -- Rebuild dashes
-        local circleContainer = fovFrame:FindFirstChild("CircleContainer")
-        if circleContainer then
-            for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
-            dashParts = {}
-            local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
-            local angleStep = (2 * math.pi) / numDashes
-            for i = 1, numDashes do
-                local angle = i * angleStep
-                local x = CONFIG.FOVRadius * math.cos(angle)
-                local y = CONFIG.FOVRadius * math.sin(angle)
-                local dash = Instance.new("Frame")
-                dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2)
-                dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
-                dash.BackgroundColor3 = CONFIG.FOVColor
-                dash.BackgroundTransparency = 0
-                dash.BorderSizePixel = 0
-                dash.Rotation = math.deg(angle)
-                dash.Parent = circleContainer
-                table.insert(dashParts, { Frame = dash, Angle = angle })
-            end
-        end
-        if statusLabel then
-            local text = statusLabel.Text:match("^[^|]+") or "○ READY"
-            statusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
-        end
-    end
-end
-
--- ===== BODYGYRO SETUP =====
+-- Gyro setup
 local function SetupGyro()
     local char = Player.Character
     if not char then return false end
@@ -153,50 +66,41 @@ local function SetupGyro()
     torso = hrp
     gyro = Instance.new("BodyGyro")
     gyro.Parent = torso
-    gyro.MaxTorque = Vector3.new(CONFIG.MaxTorque, CONFIG.MaxTorque, CONFIG.MaxTorque)
+    gyro.MaxTorque = Vector3.new(400,400,400) -- very low
     gyro.D = 20
     gyro.P = 2000
     gyro.CFrame = torso.CFrame
+    print("6. Gyro created")
     return true
 end
 
--- ===== MOVEMENT DETECTION =====
-local function IsPlayerMoving()
-    if not Player.Character then return false end
-    local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    return hrp.Velocity.Magnitude > 2
+-- Initial gyro
+if Player.Character then
+    SetupGyro()
+else
+    print("Waiting for character...")
 end
+Player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    SetupGyro()
+end)
 
--- ===== TARGET FUNCTIONS =====
-local function IsDowned(character)
-    if not character then return true end
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return true end
-    local state = humanoid:GetState()
-    return state == Enum.HumanoidStateType.Physics or
-           state == Enum.HumanoidStateType.Dead or
-           state == Enum.HumanoidStateType.FallingDown or
-           state == Enum.HumanoidStateType.GettingUp
-end
-
+-- Target functions
 local function GetTargets(mousePos)
     local targets = {}
-    local camPos = Camera.CFrame.Position
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= Player and player.Character then
-            if IsDowned(player.Character) then continue end
             local head = player.Character:FindFirstChild("Head")
             if head then
-                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                local pos, onScreen = Camera:WorldToScreenPoint(head.Position)
                 if onScreen then
-                    local distance = (head.Position - camPos).Magnitude
-                    if distance <= CONFIG.MaxDistance then
+                    local dist = (head.Position - Camera.CFrame.Position).Magnitude
+                    if dist <= 200 then
                         table.insert(targets, {
                             Player = player,
                             Head = head,
-                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
-                            Distance = distance,
+                            HeadScreenPos = Vector2.new(pos.X, pos.Y),
+                            Distance = dist,
                             HeadPosition = head.Position,
                         })
                     end
@@ -207,107 +111,59 @@ local function GetTargets(mousePos)
     return targets
 end
 
-local function GetBestTarget(targets, mousePos, current)
-    local best, bestDist = nil, CONFIG.FOVRadius + 1
+local function GetBest(targets, mousePos)
+    local best, bestDist = nil, FOVRadius+1
     for _, t in pairs(targets) do
         local d = (t.HeadScreenPos - mousePos).Magnitude
-        if d <= CONFIG.FOVRadius and d < bestDist then
+        if d <= FOVRadius and d < bestDist then
             bestDist = d
             best = t
-        end
-    end
-    if best and current then
-        local currentDist = (current.HeadScreenPos - mousePos).Magnitude
-        if bestDist < currentDist - 5 then
-            return best
-        else
-            return current
         end
     end
     return best
 end
 
--- ===== KEYBINDS =====
+-- Keybind
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.X then
         isActive = not isActive
-        if statusLabel then
-            statusLabel.Text = (isActive and "● AIMING" or "○ READY") .. " | FOV: " .. CONFIG.FOVRadius
-        end
+        statusLabel.Text = isActive and "● AIMING" or "○ READY"
         if not isActive then currentTarget = nil
-    end
-
-    if input.KeyCode == Enum.KeyCode.F3 then
-        UpdateFOV(CONFIG.FOVRadius + 10)
-    end
-
-    if input.KeyCode == Enum.KeyCode.F2 then
-        UpdateFOV(CONFIG.FOVRadius - 10)
+        print("Toggled:", isActive)
     end
 end)
 
--- ===== MAIN LOOP =====
+-- Main loop
 RunService.RenderStepped:Connect(function()
-    -- Get mouse position
     local mousePos = UserInputService:GetMouseLocation()
     local mouseX, mouseY = mousePos.X, mousePos.Y
+    fovFrame.Position = UDim2.new(0, mouseX - FOVRadius, 0, mouseY - FOVRadius)
 
-    -- Update FOV position
-    if fovFrame then
-        fovFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
-    end
-
-    -- Rotation animation
-    rotation = (rotation + CONFIG.RotationSpeed * RunService.Heartbeat:Wait()) % 360
-    local angleOffset = math.rad(rotation)
-    for _, data in pairs(dashParts) do
-        local angle = data.Angle + angleOffset
-        local x = CONFIG.FOVRadius * math.cos(angle)
-        local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
-        data.Frame.Rotation = math.deg(angle)
-    end
-
-    if not isActive then return end
-
-    -- Ensure gyro exists
-    if not gyro or not gyro.Parent then
-        SetupGyro()
-        if not gyro then return end
-    end
-
-    -- Movement detection
-    local moving = IsPlayerMoving()
-    local strength = moving and CONFIG.LockStrength * 0.3 or CONFIG.LockStrength
-
-    local targets = GetTargets(Vector2.new(mouseX, mouseY))
-    if #targets == 0 then
-        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO PLAYERS | FOV: " .. CONFIG.FOVRadius end
+    if not isActive or not gyro or not torso then
+        -- try to recreate gyro if missing
+        if isActive and not gyro then
+            SetupGyro()
+        end
         return
     end
 
-    local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY), currentTarget)
+    local targets = GetTargets(Vector2.new(mouseX, mouseY))
+    if #targets == 0 then
+        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO PLAYERS" end
+        return
+    end
+
+    local target = GetBest(targets, Vector2.new(mouseX, mouseY))
     if target then
         if not currentTarget or target.Player ~= currentTarget.Player then
             currentTarget = target
         end
-        local headPos = currentTarget.HeadPosition
-        local lookAt = CFrame.lookAt(torso.Position, headPos)
-        gyro.CFrame = gyro.CFrame:Lerp(lookAt, strength)
-        statusLabel.Text = "● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)" .. (moving and " [MOVING]" or "") .. " | FOV: " .. CONFIG.FOVRadius
+        local lookAt = CFrame.lookAt(torso.Position, currentTarget.HeadPosition)
+        gyro.CFrame = gyro.CFrame:Lerp(lookAt, 0.2)
+        statusLabel.Text = "● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)"
     else
-        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO TARGET | FOV: " .. CONFIG.FOVRadius end
+        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO TARGET" end
     end
 end)
 
--- ===== CHARACTER RESPAWN =====
-Player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    SetupGyro()
-    if fovFrame then fovFrame.Visible = true end
-end)
-
--- ===== INIT =====
-SetupGUI()
-SetupGyro()
-print("Aimlock loaded – X to toggle, F2/F3 for FOV")
+print("7. Script fully loaded")
