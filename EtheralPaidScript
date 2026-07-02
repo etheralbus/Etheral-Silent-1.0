@@ -1,9 +1,8 @@
 --[[
-    COMPLETE BODYGYRO AIMLOCK WITH SLIDER HUD
-    - X to toggle aimlock
-    - F2/F3 to adjust FOV (slider HUD appears)
-    - Rotating FOV circle follows mouse
-    - Uses BodyGyro (no camera lock, bypasses anti-cheat)
+    MINIMAL FIXED SCRIPT
+    - Rotating FOV circle
+    - F2/F3 adjust FOV with HUD
+    - X toggles BodyGyro aimlock
 ]]
 
 local Players = game:GetService("Players")
@@ -15,13 +14,17 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
--- CONFIG
+if not Player or not Mouse then
+    warn("Player or Mouse missing")
+    return
+end
+
 local CONFIG = {
     FOVRadius = 90,
     MinFOV = 20,
     MaxFOV = 200,
     MaxDistance = 200,
-    LockStrength = 0.25,
+    LockStrength = 0.3,
     MaxTorque = 600,
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
@@ -34,100 +37,21 @@ local isActive = false
 local currentTarget = nil
 local gyro = nil
 local torso = nil
+local dashParts = {}
 
 -- Wait for PlayerGui
 local PlayerGui = Player:WaitForChild("PlayerGui", 5)
 if not PlayerGui then return end
 
--- ===== CREATE GUI =====
+-- ===== GUI =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimFOV"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = PlayerGui
 
--- ===== SLIDER HUD =====
-local hudFrame = Instance.new("Frame")
-hudFrame.Name = "HUD"
-hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-hudFrame.Position = UDim2.new(0.5, 0, 0.82, 0)
-hudFrame.Size = UDim2.new(0, 650, 0, 90)
-hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-hudFrame.BorderSizePixel = 4
-hudFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-hudFrame.Visible = false
-hudFrame.Parent = screenGui
-
-local stroke = Instance.new("UIStroke")
-stroke.Parent = hudFrame
-stroke.Thickness = 2
-stroke.Color = Color3.fromRGB(120, 120, 120)
-
-local accent = Instance.new("Frame")
-accent.Parent = hudFrame
-accent.Position = UDim2.new(0, 12, 0, 12)
-accent.Size = UDim2.new(0, 28, 1, -24)
-accent.BackgroundColor3 = Color3.fromRGB(145, 75, 255)
-accent.BorderSizePixel = 3
-accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
-
-local label = Instance.new("TextLabel")
-label.Parent = hudFrame
-label.BackgroundTransparency = 1
-label.Position = UDim2.new(0, 70, 0, 0)
-label.Size = UDim2.new(0, 120, 1, 0)
-label.Text = "FOV"
-label.Font = Enum.Font.Arcade
-label.TextScaled = true
-label.TextColor3 = Color3.fromRGB(240, 240, 240)
-label.TextStrokeTransparency = 0
-label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-
-local sliderBG = Instance.new("Frame")
-sliderBG.Parent = hudFrame
-sliderBG.Position = UDim2.new(0, 210, 0.5, -11)
-sliderBG.Size = UDim2.new(0, 320, 0, 22)
-sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-sliderBG.BorderSizePixel = 3
-sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
-
-local fill = Instance.new("Frame")
-fill.Parent = sliderBG
-fill.Size = UDim2.new(0.48, 0, 1, 0)
-fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
-fill.BorderSizePixel = 0
-
-local knob = Instance.new("Frame")
-knob.Parent = sliderBG
-knob.AnchorPoint = Vector2.new(0.5, 0.5)
-knob.Position = UDim2.new(0.48, 0, 0.5, 0)
-knob.Size = UDim2.new(0, 24, 0, 36)
-knob.BackgroundColor3 = Color3.fromRGB(155, 90, 255)
-knob.BorderSizePixel = 3
-knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
-
-local valueBox = Instance.new("Frame")
-valueBox.Parent = hudFrame
-valueBox.Position = UDim2.new(1, -100, 0.5, -25)
-valueBox.Size = UDim2.new(0, 75, 0, 50)
-valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-valueBox.BorderSizePixel = 3
-valueBox.BorderColor3 = Color3.fromRGB(150, 85, 255)
-
-local number = Instance.new("TextLabel")
-number.Parent = valueBox
-number.BackgroundTransparency = 1
-number.Size = UDim2.fromScale(1, 1)
-number.Font = Enum.Font.Arcade
-number.TextScaled = true
-number.Text = "90"
-number.TextColor3 = Color3.fromRGB(150, 85, 255)
-number.TextStrokeTransparency = 0
-number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-
--- ===== FOV CIRCLE =====
+-- FOV Circle
 local fovFrame = Instance.new("Frame")
-fovFrame.Name = "FOVFrame"
 fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
 fovFrame.Position = UDim2.new(0, 0, 0, 0)
 fovFrame.BackgroundTransparency = 1
@@ -135,13 +59,11 @@ fovFrame.ClipsDescendants = true
 fovFrame.Parent = screenGui
 
 local circleContainer = Instance.new("Frame")
-circleContainer.Name = "CircleContainer"
 circleContainer.Size = UDim2.new(1, 0, 1, 0)
 circleContainer.Position = UDim2.new(0, 0, 0, 0)
 circleContainer.BackgroundTransparency = 1
 circleContainer.Parent = fovFrame
 
-local dashParts = {}
 local function BuildDashes()
     for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
     dashParts = {}
@@ -164,7 +86,7 @@ local function BuildDashes()
 end
 BuildDashes()
 
--- ===== STATUS LABEL =====
+-- Status label
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(0, 280, 0, 25)
 statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
@@ -179,7 +101,89 @@ local function UpdateStatus(text)
     statusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- ===== HUD FUNCTIONS =====
+-- ===== HUD (slider) =====
+local hudFrame = Instance.new("Frame")
+hudFrame.Name = "HUD"
+hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+hudFrame.Position = UDim2.new(0.5, 0, 0.82, 0)
+hudFrame.Size = UDim2.new(0, 400, 0, 70)
+hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+hudFrame.BorderSizePixel = 4
+hudFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+hudFrame.Visible = false
+hudFrame.Parent = screenGui
+
+local stroke = Instance.new("UIStroke")
+stroke.Parent = hudFrame
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(120, 120, 120)
+
+local accent = Instance.new("Frame")
+accent.Parent = hudFrame
+accent.Position = UDim2.new(0, 12, 0, 12)
+accent.Size = UDim2.new(0, 28, 1, -24)
+accent.BackgroundColor3 = Color3.fromRGB(145, 75, 255)
+accent.BorderSizePixel = 3
+accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local label = Instance.new("TextLabel")
+label.Parent = hudFrame
+label.BackgroundTransparency = 1
+label.Position = UDim2.new(0, 50, 0, 0)
+label.Size = UDim2.new(0, 80, 1, 0)
+label.Text = "FOV"
+label.Font = Enum.Font.Arcade
+label.TextScaled = true
+label.TextColor3 = Color3.fromRGB(240, 240, 240)
+label.TextStrokeTransparency = 0
+label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+local sliderBG = Instance.new("Frame")
+sliderBG.Parent = hudFrame
+sliderBG.Position = UDim2.new(0, 150, 0.5, -10)
+sliderBG.Size = UDim2.new(0, 160, 0, 20)
+sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+sliderBG.BorderSizePixel = 3
+sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local fill = Instance.new("Frame")
+fill.Parent = sliderBG
+fill.Size = UDim2.new(0.5, 0, 1, 0)
+fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
+fill.BorderSizePixel = 0
+
+local knob = Instance.new("Frame")
+knob.Parent = sliderBG
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new(0.5, 0, 0.5, 0)
+knob.Size = UDim2.new(0, 20, 0, 30)
+knob.BackgroundColor3 = Color3.fromRGB(155, 90, 255)
+knob.BorderSizePixel = 3
+knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local valueBox = Instance.new("Frame")
+valueBox.Parent = hudFrame
+valueBox.Position = UDim2.new(1, -80, 0.5, -20)
+valueBox.Size = UDim2.new(0, 60, 0, 40)
+valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+valueBox.BorderSizePixel = 3
+valueBox.BorderColor3 = Color3.fromRGB(150, 85, 255)
+
+local number = Instance.new("TextLabel")
+number.Parent = valueBox
+number.BackgroundTransparency = 1
+number.Size = UDim2.fromScale(1, 1)
+number.Font = Enum.Font.Arcade
+number.TextScaled = true
+number.Text = "90"
+number.TextColor3 = Color3.fromRGB(150, 85, 255)
+number.TextStrokeTransparency = 0
+number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+-- HUD logic
+local hudVisible = false
+local hudHideTimer = nil
+
 local function UpdateSlider(percent)
     percent = math.clamp(percent, 0, 1)
     local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
@@ -189,10 +193,10 @@ local function UpdateSlider(percent)
         fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
         BuildDashes()
         UpdateStatus(statusLabel.Text:match("^[^|]+"))
+        number.Text = tostring(CONFIG.FOVRadius)
     end
     fill.Size = UDim2.new(percent, 0, 1, 0)
     knob.Position = UDim2.new(percent, 0, 0.5, 0)
-    number.Text = tostring(CONFIG.FOVRadius)
 end
 
 local function ShowHUD()
@@ -222,10 +226,7 @@ local function ShowHUD()
     end)
 end
 
-local hudVisible = false
-local hudHideTimer = nil
-
--- ===== SLIDER DRAGGING =====
+-- Slider dragging
 local dragging = false
 sliderBG.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -282,7 +283,7 @@ if Player.Character then
     SetupGyro()
 end
 
--- ===== TARGET FUNCTIONS =====
+-- ===== TARGET =====
 local function IsDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -341,6 +342,20 @@ local function GetBestTarget(targets, mousePos, current)
     return best
 end
 
+-- ===== ROTATION =====
+local rotation = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    rotation = (rotation + CONFIG.RotationSpeed * deltaTime) % 360
+    local angleOffset = math.rad(rotation)
+    for _, data in pairs(dashParts) do
+        local angle = data.Angle + angleOffset
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
 -- ===== KEYBINDS =====
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.X then
@@ -372,20 +387,6 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
--- ===== ROTATION ANIMATION =====
-local rotation = 0
-RunService.Heartbeat:Connect(function(deltaTime)
-    rotation = (rotation + CONFIG.RotationSpeed * deltaTime) % 360
-    local angleOffset = math.rad(rotation)
-    for _, data in pairs(dashParts) do
-        local angle = data.Angle + angleOffset
-        local x = CONFIG.FOVRadius * math.cos(angle)
-        local y = CONFIG.FOVRadius * math.sin(angle)
-        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
-        data.Frame.Rotation = math.deg(angle)
-    end
-end)
-
 -- ===== MAIN LOOP =====
 RunService.RenderStepped:Connect(function()
     local mouseX, mouseY
@@ -398,12 +399,9 @@ RunService.RenderStepped:Connect(function()
         mouseY = pos.Y
     end
 
-    if fovFrame then
-        fovFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
-    end
+    fovFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
 
     if not isActive or not gyro or not torso then
-        if isActive and not gyro then SetupGyro() end
         return
     end
 
@@ -427,9 +425,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-Player.CharacterAdded:Connect(function()
-    wait(0.5)
-    if fovFrame then fovFrame.Visible = true end
-end)
-
-print("Aimlock loaded – X to toggle, F2/F3 for FOV")
+print("✅ Aimlock loaded – X to toggle, F2/F3 for FOV")
