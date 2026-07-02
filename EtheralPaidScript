@@ -1,3 +1,4 @@
+-- FINAL WORKING BODYGYRO AIMLOCK (with FOV)
 print("AIMLOCK STARTED")
 
 local Players = game:GetService("Players")
@@ -19,72 +20,69 @@ local currentTarget = nil
 local gyro = nil
 local torso = nil
 
--- Wait for character and create gyro
-local function SetupGyro()
-    local char = Player.Character
-    if not char then
-        print("No character yet")
-        return false
-    end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        print("No HumanoidRootPart")
-        return false
-    end
-    if gyro then gyro:Destroy() end
-    torso = hrp
-    gyro = Instance.new("BodyGyro")
-    gyro.Parent = torso
-    gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-    gyro.D = 50
-    gyro.P = 5000
-    gyro.CFrame = torso.CFrame
-    print("Gyro created on", torso.Name)
-    return true
-end
-
-Player.CharacterAdded:Connect(function()
-    print("Character added event fired")
-    task.wait(0.5)
-    SetupGyro()
-end)
-
-if Player.Character then
-    SetupGyro()
-end
-
--- SIMPLE FOV CIRCLE (minimal)
+-- Create GUI
 local PlayerGui = Player:WaitForChild("PlayerGui")
+print("PlayerGui found")
+
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FOV"
+screenGui.Name = "SilentAimFOV"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = PlayerGui
+print("ScreenGui created")
 
+-- FOV Circle
 local fovFrame = Instance.new("Frame")
 fovFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 fovFrame.Position = UDim2.new(0, 0, 0, 0)
 fovFrame.BackgroundTransparency = 1
+fovFrame.ClipsDescendants = true
 fovFrame.Parent = screenGui
+print("FOV frame created")
 
--- Dashes (simplified)
-for i = 1, 20 do
-    local angle = (i / 20) * 2 * math.pi
-    local x = FOVRadius * math.cos(angle)
-    local y = FOVRadius * math.sin(angle)
-    local dash = Instance.new("Frame")
-    dash.Size = UDim2.new(0, 8, 0, 2)
-    dash.Position = UDim2.new(0.5, x - 4, 0.5, y - 1)
-    dash.BackgroundColor3 = Color3.fromRGB(220, 160, 255)
-    dash.BackgroundTransparency = 0
-    dash.BorderSizePixel = 0
-    dash.Rotation = math.deg(angle)
-    dash.Parent = fovFrame
+-- Dashes
+local dashParts = {}
+local DashLength = 10
+local GapLength = 12
+local function BuildDashes()
+    for _, child in pairs(fovFrame:GetChildren()) do child:Destroy() end
+    dashParts = {}
+    local numDashes = math.floor((2 * math.pi * FOVRadius) / (DashLength + GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = FOVRadius * math.cos(angle)
+        local y = FOVRadius * math.sin(angle)
+        local dash = Instance.new("Frame")
+        dash.Size = UDim2.new(0, DashLength, 0, 2)
+        dash.Position = UDim2.new(0.5, x - DashLength/2, 0.5, y - 1)
+        dash.BackgroundColor3 = Color3.fromRGB(220, 160, 255)
+        dash.BackgroundTransparency = 0
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = fovFrame
+        table.insert(dashParts, { Frame = dash, Angle = angle })
+    end
 end
+BuildDashes()
+print("Dashes built")
 
-print("FOV circle created")
+-- Rotation animation
+local rotation = 0
+RunService.Heartbeat:Connect(function(dt)
+    rotation = (rotation + 180 * dt) % 360
+    local offset = math.rad(rotation)
+    for _, data in pairs(dashParts) do
+        local angle = data.Angle + offset
+        local x = FOVRadius * math.cos(angle)
+        local y = FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - DashLength/2, 0.5, y - 1)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+print("Rotation loop added")
 
--- Status text
+-- Status label
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(0, 200, 0, 25)
 statusLabel.Position = UDim2.new(0.5, -100, 1.2, 0)
@@ -97,6 +95,33 @@ statusLabel.Parent = fovFrame
 
 local function UpdateStatus(text)
     statusLabel.Text = text
+end
+
+-- Gyro setup
+local function SetupGyro()
+    local char = Player.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    if gyro then gyro:Destroy() end
+    torso = hrp
+    gyro = Instance.new("BodyGyro")
+    gyro.Parent = torso
+    gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
+    gyro.D = 50
+    gyro.P = 5000
+    gyro.CFrame = torso.CFrame
+    print("Gyro created")
+    return true
+end
+
+Player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    SetupGyro()
+end)
+
+if Player.Character then
+    SetupGyro()
 end
 
 -- Target functions
@@ -203,4 +228,5 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+print("AIMLOCK FULLY LOADED - press X to toggle")
 print("AIMLOCK FULLY LOADED - press X to toggle")
