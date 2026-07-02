@@ -1,6 +1,4 @@
---[[
-    Silent Aim System - Working Version
-]]
+-- Silent Aim System - Easy Target Switching
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,7 +9,6 @@ local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
--- Configuration
 local CONFIG = {
     FOVRadius = 90,
     MinFOV = 20,
@@ -20,7 +17,7 @@ local CONFIG = {
     ActivateKey = Enum.KeyCode.X,
     FirstPersonLock = 0.5,
     ThirdPersonLock = 0.35,
-    SwitchCooldown = 0.1,
+    SwitchThreshold = 5,  -- pixels; new target must be closer by this amount to switch
     FOVColor = Color3.fromRGB(220, 160, 255),
     DashLength = 10,
     GapLength = 12,
@@ -28,20 +25,16 @@ local CONFIG = {
     HUDAutoHideDelay = 5,
 }
 
--- State
 local isActive = false
 local currentTarget = nil
-local lastSwitchTime = 0
 
--- ===== Create GUI =====
-local function CreateFOVGUI()
+local function CreateGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SilentAimFOV"
     screenGui.ResetOnSpawn = false
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = Player:WaitForChild("PlayerGui")
 
-    -- HUD Frame
     local hudFrame = Instance.new("Frame")
     hudFrame.Name = "HUD"
     hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -58,7 +51,6 @@ local function CreateFOVGUI()
     stroke.Thickness = 2
     stroke.Color = Color3.fromRGB(120, 120, 120)
 
-    -- Accent
     local accent = Instance.new("Frame")
     accent.Parent = hudFrame
     accent.Position = UDim2.new(0, 12, 0, 12)
@@ -67,7 +59,6 @@ local function CreateFOVGUI()
     accent.BorderSizePixel = 3
     accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
 
-    -- Label
     local label = Instance.new("TextLabel")
     label.Parent = hudFrame
     label.BackgroundTransparency = 1
@@ -80,7 +71,6 @@ local function CreateFOVGUI()
     label.TextStrokeTransparency = 0
     label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 
-    -- Slider BG
     local sliderBG = Instance.new("Frame")
     sliderBG.Parent = hudFrame
     sliderBG.Position = UDim2.new(0, 210, 0.5, -11)
@@ -89,14 +79,12 @@ local function CreateFOVGUI()
     sliderBG.BorderSizePixel = 3
     sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
 
-    -- Fill
     local fill = Instance.new("Frame")
     fill.Parent = sliderBG
     fill.Size = UDim2.new(0.48, 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
     fill.BorderSizePixel = 0
 
-    -- Knob
     local knob = Instance.new("Frame")
     knob.Parent = sliderBG
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -106,7 +94,6 @@ local function CreateFOVGUI()
     knob.BorderSizePixel = 3
     knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
 
-    -- Value Box
     local valueBox = Instance.new("Frame")
     valueBox.Parent = hudFrame
     valueBox.Position = UDim2.new(1, -100, 0.5, -25)
@@ -126,7 +113,6 @@ local function CreateFOVGUI()
     number.TextStrokeTransparency = 0
     number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 
-    -- FOV Circle
     local fovFrame = Instance.new("Frame")
     fovFrame.Name = "FOVFrame"
     fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
@@ -167,7 +153,6 @@ local function CreateFOVGUI()
     end
     BuildDashes()
 
-    -- Status Label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(0, 280, 0, 25)
     statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
@@ -184,33 +169,31 @@ local function CreateFOVGUI()
         CircleContainer = circleContainer,
         DashParts = dashParts,
         StatusLabel = statusLabel,
-        HUDData = {
-            Frame = hudFrame,
-            Fill = fill,
-            Knob = knob,
-            Number = number,
-            SliderBG = sliderBG,
-            isHUDVisible = false,
-            hideTimer = nil,
-        },
+        HUD = hudFrame,
+        Fill = fill,
+        Knob = knob,
+        Number = number,
+        SliderBG = sliderBG,
         BuildDashes = BuildDashes,
         Rotation = 0,
+        isHUDVisible = false,
+        hideTimer = nil,
     }
 end
 
-local fovData = CreateFOVGUI()
+local fovData = CreateGUI()
 
--- ===== Rebuild FOV =====
+-- Rebuild FOV
 local function RebuildFOV()
     fovData.FOVFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
     fovData.DashParts = fovData.BuildDashes()
     local statusText = fovData.StatusLabel.Text:gsub("FOV: %d+", "FOV: " .. CONFIG.FOVRadius)
     fovData.StatusLabel.Text = statusText
-    if fovData.HUDData.isHUDVisible then
+    if fovData.isHUDVisible then
         local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
-        fovData.HUDData.Fill.Size = UDim2.new(percent, 0, 1, 0)
-        fovData.HUDData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
-        fovData.HUDData.Number.Text = tostring(CONFIG.FOVRadius)
+        fovData.Fill.Size = UDim2.new(percent, 0, 1, 0)
+        fovData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
+        fovData.Number.Text = tostring(CONFIG.FOVRadius)
     end
 end
 
@@ -218,7 +201,6 @@ local function UpdateStatus(text)
     fovData.StatusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- ===== Slider =====
 local function UpdateSlider(percent)
     percent = math.clamp(percent, 0, 1)
     local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
@@ -226,44 +208,46 @@ local function UpdateSlider(percent)
     if newFOV ~= CONFIG.FOVRadius then
         CONFIG.FOVRadius = newFOV
         RebuildFOV()
-        fovData.HUDData.Number.Text = tostring(newFOV)
+        fovData.Number.Text = tostring(newFOV)
     end
-    fovData.HUDData.Fill.Size = UDim2.new(percent, 0, 1, 0)
-    fovData.HUDData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
+    fovData.Fill.Size = UDim2.new(percent, 0, 1, 0)
+    fovData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
 end
 
 local function ShowHUD()
-    local hud = fovData.HUDData
-    if hud.hideTimer then task.cancel(hud.hideTimer); hud.hideTimer = nil end
-    if not hud.isHUDVisible then
-        hud.Frame.Visible = true
-        hud.Frame.Position = UDim2.new(0.5, 0, -0.12, 0)
-        local rollDown = TweenService:Create(hud.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    if fovData.hideTimer then
+        task.cancel(fovData.hideTimer)
+        fovData.hideTimer = nil
+    end
+    if not fovData.isHUDVisible then
+        fovData.HUD.Visible = true
+        fovData.HUD.Position = UDim2.new(0.5, 0, -0.12, 0)
+        local rollDown = TweenService:Create(fovData.HUD, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = UDim2.new(0.5, 0, 0.82, 0)
         })
         rollDown:Play()
-        hud.isHUDVisible = true
+        fovData.isHUDVisible = true
     end
     local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
-    hud.Fill.Size = UDim2.new(percent, 0, 1, 0)
-    hud.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
-    hud.Number.Text = tostring(CONFIG.FOVRadius)
-    hud.hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
-        local rollUp = TweenService:Create(hud.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    fovData.Fill.Size = UDim2.new(percent, 0, 1, 0)
+    fovData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
+    fovData.Number.Text = tostring(CONFIG.FOVRadius)
+    fovData.hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
+        local rollUp = TweenService:Create(fovData.HUD, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Position = UDim2.new(0.5, 0, -0.12, 0)
         })
         rollUp:Play()
-        hud.isHUDVisible = false
+        fovData.isHUDVisible = false
         task.wait(0.35)
-        hud.Frame.Visible = false
-        hud.hideTimer = nil
+        fovData.HUD.Visible = false
+        fovData.hideTimer = nil
     end)
 end
 
--- ===== Dragging =====
+-- Slider dragging
 local dragging = false
-local sliderBG = fovData.HUDData.SliderBG
-local knob = fovData.HUDData.Knob
+local sliderBG = fovData.SliderBG
+local knob = fovData.Knob
 
 sliderBG.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -273,9 +257,7 @@ sliderBG.InputBegan:Connect(function(input)
     end
 end)
 sliderBG.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 sliderBG.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -284,14 +266,10 @@ sliderBG.InputChanged:Connect(function(input)
     end
 end)
 knob.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
 end)
 knob.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 knob.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -300,7 +278,7 @@ knob.InputChanged:Connect(function(input)
     end
 end)
 
--- ===== Downed Check =====
+-- Downed check
 local function IsPlayerDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -316,7 +294,6 @@ local function IsPlayerDowned(character)
     return false
 end
 
--- ===== Target Functions =====
 local function GetTargets(mousePos)
     local targets = {}
     local cameraPos = Camera.CFrame.Position
@@ -346,7 +323,8 @@ local function GetTargets(mousePos)
     return targets
 end
 
-local function GetBestTarget(targets, mousePos)
+-- ===== IMPROVED TARGET SELECTION =====
+local function GetBestTarget(targets, mousePos, currentTarget)
     local best, bestDist = nil, CONFIG.FOVRadius + 1
     for _, t in pairs(targets) do
         local d = (t.HeadScreenPos - mousePos).Magnitude
@@ -355,10 +333,26 @@ local function GetBestTarget(targets, mousePos)
             best = t
         end
     end
+
+    if not best then
+        return nil
+    end
+
+    -- If we have a current target, check if we should switch
+    if currentTarget then
+        local currentDist = (currentTarget.HeadScreenPos - mousePos).Magnitude
+        -- If the new target is closer by at least the threshold, switch
+        if bestDist < currentDist - CONFIG.SwitchThreshold then
+            return best
+        else
+            return currentTarget
+        end
+    end
+
     return best
 end
 
--- ===== Rotation Animation =====
+-- Rotation animation
 RunService.Heartbeat:Connect(function(deltaTime)
     fovData.Rotation = (fovData.Rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(fovData.Rotation)
@@ -371,8 +365,8 @@ RunService.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- ===== Input Handling =====
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+-- Input
+UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.X then
         isActive = not isActive
         UpdateStatus(isActive and "● AIMING" or "○ READY")
@@ -398,7 +392,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- ===== Main Aimlock =====
+-- Main loop
 RunService.RenderStepped:Connect(function()
     local mouseX = Mouse.X
     local mouseY = Mouse.Y
@@ -424,8 +418,10 @@ RunService.RenderStepped:Connect(function()
         return
     end
 
-    local target = GetBestTarget(targets, mousePos)
+    -- Use improved target selection
+    local target = GetBestTarget(targets, mousePos, currentTarget)
     if target then
+        -- Update current target if changed
         if not currentTarget or target.Player ~= currentTarget.Player then
             currentTarget = target
         end
@@ -459,7 +455,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===== Cleanup =====
 Player.CharacterAdded:Connect(function()
     wait(0.5)
     if fovData.FOVFrame then
