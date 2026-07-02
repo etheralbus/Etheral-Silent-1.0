@@ -1,14 +1,15 @@
 --[[
-    Modern Silent Aim / Aimbot Template
-    - Uses BodyGyro for undetected aiming
-    - Includes a toggleable FOV circle
-    - Modular structure for easy feature addition
+    BodyGyro Aimlock with FOV Circle & Slider HUD
+    - X to toggle aimlock
+    - F2/F3 to adjust FOV (HUD shows value)
+    - Rotating dashed circle follows mouse
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
@@ -16,89 +17,291 @@ local Mouse = Player:GetMouse()
 -- Configuration
 local CONFIG = {
     FOVRadius = 90,
-    LockStrength = 0.5,
+    MinFOV = 20,
+    MaxFOV = 200,
     MaxDistance = 200,
-    ToggleKey = Enum.KeyCode.X,
+    LockStrength = 0.3,          -- Lower for smoother movement
+    MaxTorque = 2000,            -- Lower torque to prevent movement interference
+    FOVColor = Color3.fromRGB(220, 160, 255),
+    DashLength = 10,
+    GapLength = 12,
+    RotationSpeed = 180,
+    HUDAutoHideDelay = 5,
 }
 
 -- State
-local AimlockEnabled = false
-local CurrentTarget = nil
-local Gyro = nil
-local Torso = nil
+local isActive = false
+local currentTarget = nil
+local gyro = nil
+local torso = nil
 
--- GUI Setup
-local function SetupGUI()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "AimlockGUI"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+-- ===== GUI =====
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
-    -- FOV Circle
-    local FovFrame = Instance.new("Frame")
-    FovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-    FovFrame.Position = UDim2.new(0, 0, 0, 0)
-    FovFrame.BackgroundTransparency = 1
-    FovFrame.ClipsDescendants = true
-    FovFrame.Parent = ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SilentAimFOV"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
 
-    -- Dashes for the FOV circle
-    for i = 1, 20 do
-        local angle = (i / 20) * 2 * math.pi
+-- ===== HUD (slider style) =====
+local hudFrame = Instance.new("Frame")
+hudFrame.Name = "HUD"
+hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+hudFrame.Position = UDim2.new(0.5, 0, 0.82, 0)
+hudFrame.Size = UDim2.new(0, 650, 0, 90)
+hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+hudFrame.BorderSizePixel = 4
+hudFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+hudFrame.Visible = false
+hudFrame.Parent = screenGui
+
+local stroke = Instance.new("UIStroke")
+stroke.Parent = hudFrame
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(120, 120, 120)
+
+local accent = Instance.new("Frame")
+accent.Parent = hudFrame
+accent.Position = UDim2.new(0, 12, 0, 12)
+accent.Size = UDim2.new(0, 28, 1, -24)
+accent.BackgroundColor3 = Color3.fromRGB(145, 75, 255)
+accent.BorderSizePixel = 3
+accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local label = Instance.new("TextLabel")
+label.Parent = hudFrame
+label.BackgroundTransparency = 1
+label.Position = UDim2.new(0, 70, 0, 0)
+label.Size = UDim2.new(0, 120, 1, 0)
+label.Text = "FOV"
+label.Font = Enum.Font.Arcade
+label.TextScaled = true
+label.TextColor3 = Color3.fromRGB(240, 240, 240)
+label.TextStrokeTransparency = 0
+label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+local sliderBG = Instance.new("Frame")
+sliderBG.Parent = hudFrame
+sliderBG.Position = UDim2.new(0, 210, 0.5, -11)
+sliderBG.Size = UDim2.new(0, 320, 0, 22)
+sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+sliderBG.BorderSizePixel = 3
+sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local fill = Instance.new("Frame")
+fill.Parent = sliderBG
+fill.Size = UDim2.new(0.48, 0, 1, 0)
+fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
+fill.BorderSizePixel = 0
+
+local knob = Instance.new("Frame")
+knob.Parent = sliderBG
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new(0.48, 0, 0.5, 0)
+knob.Size = UDim2.new(0, 24, 0, 36)
+knob.BackgroundColor3 = Color3.fromRGB(155, 90, 255)
+knob.BorderSizePixel = 3
+knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
+
+local valueBox = Instance.new("Frame")
+valueBox.Parent = hudFrame
+valueBox.Position = UDim2.new(1, -100, 0.5, -25)
+valueBox.Size = UDim2.new(0, 75, 0, 50)
+valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+valueBox.BorderSizePixel = 3
+valueBox.BorderColor3 = Color3.fromRGB(150, 85, 255)
+
+local number = Instance.new("TextLabel")
+number.Parent = valueBox
+number.BackgroundTransparency = 1
+number.Size = UDim2.fromScale(1, 1)
+number.Font = Enum.Font.Arcade
+number.TextScaled = true
+number.Text = "90"
+number.TextColor3 = Color3.fromRGB(150, 85, 255)
+number.TextStrokeTransparency = 0
+number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+-- Store HUD refs
+local hudData = {
+    Frame = hudFrame,
+    Fill = fill,
+    Knob = knob,
+    Number = number,
+    SliderBG = sliderBG,
+    isVisible = false,
+    hideTimer = nil,
+}
+
+-- ===== FOV Circle (rotating) =====
+local fovFrame = Instance.new("Frame")
+fovFrame.Name = "FOVFrame"
+fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+fovFrame.Position = UDim2.new(0, 0, 0, 0)
+fovFrame.BackgroundTransparency = 1
+fovFrame.ClipsDescendants = true
+fovFrame.Parent = screenGui
+
+local circleContainer = Instance.new("Frame")
+circleContainer.Name = "CircleContainer"
+circleContainer.Size = UDim2.new(1, 0, 1, 0)
+circleContainer.Position = UDim2.new(0, 0, 0, 0)
+circleContainer.BackgroundTransparency = 1
+circleContainer.Parent = fovFrame
+
+local dashParts = {}
+local function BuildDashes()
+    for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
+    dashParts = {}
+    local numDashes = math.floor((2 * math.pi * CONFIG.FOVRadius) / (CONFIG.DashLength + CONFIG.GapLength))
+    local angleStep = (2 * math.pi) / numDashes
+    for i = 1, numDashes do
+        local angle = i * angleStep
         local x = CONFIG.FOVRadius * math.cos(angle)
         local y = CONFIG.FOVRadius * math.sin(angle)
         local dash = Instance.new("Frame")
-        dash.Size = UDim2.new(0, 8, 0, 2)
-        dash.Position = UDim2.new(0.5, x - 4, 0.5, y - 1)
-        dash.BackgroundColor3 = Color3.fromRGB(220, 160, 255)
+        dash.Size = UDim2.new(0, CONFIG.DashLength, 0, 2)
+        dash.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
+        dash.BackgroundColor3 = CONFIG.FOVColor
         dash.BackgroundTransparency = 0
         dash.BorderSizePixel = 0
         dash.Rotation = math.deg(angle)
-        dash.Parent = FovFrame
+        dash.Parent = circleContainer
+        table.insert(dashParts, { Frame = dash, Angle = angle })
     end
-
-    -- Status Label
-    local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(0, 200, 0, 25)
-    StatusLabel.Position = UDim2.new(0.5, -100, 1.2, 0)
-    StatusLabel.BackgroundTransparency = 1
-    StatusLabel.Text = "○ READY"
-    StatusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
-    StatusLabel.TextSize = 13
-    StatusLabel.Font = Enum.Font.SourceSansBold
-    StatusLabel.Parent = FovFrame
-
-    return { ScreenGui = ScreenGui, FovFrame = FovFrame, StatusLabel = StatusLabel }
 end
+BuildDashes()
 
-local GUI = SetupGUI()
+-- Rotation animation
+local rotation = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    rotation = (rotation + CONFIG.RotationSpeed * deltaTime) % 360
+    local angleOffset = math.rad(rotation)
+    for _, data in pairs(dashParts) do
+        local angle = data.Angle + angleOffset
+        local x = CONFIG.FOVRadius * math.cos(angle)
+        local y = CONFIG.FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - CONFIG.DashLength/2, 0.5, y - 1)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
 
--- Update status text
+-- Status label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0, 280, 0, 25)
+statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "○ READY | FOV: " .. CONFIG.FOVRadius
+statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Parent = fovFrame
+
 local function UpdateStatus(text)
-    if GUI.StatusLabel then
-        GUI.StatusLabel.Text = text
-    end
+    statusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- BodyGyro Setup
+-- ===== HUD control functions =====
+local function UpdateSlider(percent)
+    percent = math.clamp(percent, 0, 1)
+    local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
+    newFOV = math.clamp(newFOV, CONFIG.MinFOV, CONFIG.MaxFOV)
+    if newFOV ~= CONFIG.FOVRadius then
+        CONFIG.FOVRadius = newFOV
+        RebuildFOV()
+        number.Text = tostring(newFOV)
+        UpdateStatus(statusLabel.Text:match("^[^|]+"))
+    end
+    fill.Size = UDim2.new(percent, 0, 1, 0)
+    knob.Position = UDim2.new(percent, 0, 0.5, 0)
+end
+
+local function ShowHUD()
+    if hudData.hideTimer then task.cancel(hudData.hideTimer); hudData.hideTimer = nil end
+    if not hudData.isVisible then
+        hudData.Frame.Visible = true
+        hudData.Frame.Position = UDim2.new(0.5, 0, -0.12, 0)
+        local rollDown = TweenService:Create(hudData.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Position = UDim2.new(0.5, 0, 0.82, 0)
+        })
+        rollDown:Play()
+        hudData.isVisible = true
+    end
+    local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
+    hudData.Fill.Size = UDim2.new(percent, 0, 1, 0)
+    hudData.Knob.Position = UDim2.new(percent, 0, 0.5, 0)
+    hudData.Number.Text = tostring(CONFIG.FOVRadius)
+    hudData.hideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
+        local rollUp = TweenService:Create(hudData.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Position = UDim2.new(0.5, 0, -0.12, 0)
+        })
+        rollUp:Play()
+        hudData.isVisible = false
+        task.wait(0.35)
+        hudData.Frame.Visible = false
+        hudData.hideTimer = nil
+    end)
+end
+
+-- ===== Rebuild FOV =====
+local function RebuildFOV()
+    fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
+    BuildDashes()
+    UpdateStatus(statusLabel.Text:match("^[^|]+"))
+end
+
+-- ===== Slider dragging =====
+local dragging = false
+local sliderBGRef = hudData.SliderBG
+local knobRef = hudData.Knob
+
+sliderBGRef.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        local percent = (input.Position.X - sliderBGRef.AbsolutePosition.X) / sliderBGRef.AbsoluteSize.X
+        UpdateSlider(percent)
+    end
+end)
+sliderBGRef.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+sliderBGRef.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local percent = (input.Position.X - sliderBGRef.AbsolutePosition.X) / sliderBGRef.AbsoluteSize.X
+        UpdateSlider(percent)
+    end
+end)
+knobRef.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+end)
+knobRef.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+knobRef.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local percent = (input.Position.X - sliderBGRef.AbsolutePosition.X) / sliderBGRef.AbsoluteSize.X
+        UpdateSlider(percent)
+    end
+end)
+
+-- ===== BodyGyro setup =====
 local function SetupGyro()
-    local Character = Player.Character
-    if not Character then return false end
-    local RootPart = Character:FindFirstChild("HumanoidRootPart")
-    if not RootPart then return false end
-    if Gyro then Gyro:Destroy() end
-    Torso = RootPart
-    Gyro = Instance.new("BodyGyro")
-    Gyro.Parent = Torso
-    Gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-    Gyro.D = 50
-    Gyro.P = 5000
-    Gyro.CFrame = Torso.CFrame
+    local char = Player.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    if gyro then gyro:Destroy() end
+    torso = hrp
+    gyro = Instance.new("BodyGyro")
+    gyro.Parent = torso
+    gyro.MaxTorque = Vector3.new(CONFIG.MaxTorque, CONFIG.MaxTorque, CONFIG.MaxTorque)
+    gyro.D = 30
+    gyro.P = 3000
+    gyro.CFrame = torso.CFrame
     return true
 end
 
--- Character respawn handling
 Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     SetupGyro()
@@ -108,101 +311,127 @@ if Player.Character then
     SetupGyro()
 end
 
--- Target acquisition functions
-local function IsPlayerDowned(Character)
-    if not Character then return true end
-    local Humanoid = Character:FindFirstChild("Humanoid")
-    if not Humanoid or Humanoid.Health <= 0 then return true end
-    local State = Humanoid:GetState()
-    return State == Enum.HumanoidStateType.Physics or
-           State == Enum.HumanoidStateType.Dead or
-           State == Enum.HumanoidStateType.FallingDown or
-           State == Enum.HumanoidStateType.GettingUp
+-- ===== Target functions =====
+local function IsDowned(character)
+    if not character then return true end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return true end
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Dead or
+       state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.GettingUp then
+        return true
+    end
+    return false
 end
 
-local function GetTargets(MousePos)
-    local Targets = {}
-    local CameraPos = Camera.CFrame.Position
-    for _, Player in pairs(Players:GetPlayers()) do
-        if Player ~= Player then
-            local Character = Player.Character
-            if Character and not IsPlayerDowned(Character) then
-                local Head = Character:FindFirstChild("Head")
-                if Head then
-                    local HeadPos, OnScreen = Camera:WorldToScreenPoint(Head.Position)
-                    if OnScreen then
-                        local Distance = (Head.Position - CameraPos).Magnitude
-                        if Distance <= CONFIG.MaxDistance then
-                            table.insert(Targets, {
-                                Player = Player,
-                                Head = Head,
-                                HeadScreenPos = Vector2.new(HeadPos.X, HeadPos.Y),
-                                Distance = Distance,
-                                HeadPosition = Head.Position,
-                            })
-                        end
+local function GetTargets(mousePos)
+    local targets = {}
+    local camPos = Camera.CFrame.Position
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            if IsDowned(player.Character) then continue end
+            local head = player.Character:FindFirstChild("Head")
+            if head and head.Parent and head.Parent:FindFirstChild("Humanoid") and head.Parent.Humanoid.Health > 0 then
+                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                if onScreen then
+                    local distance = (head.Position - camPos).Magnitude
+                    if distance <= CONFIG.MaxDistance then
+                        table.insert(targets, {
+                            Player = player,
+                            Head = head,
+                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
+                            Distance = distance,
+                            HeadPosition = head.Position,
+                        })
                     end
                 end
             end
         end
     end
-    return Targets
+    return targets
 end
 
--- Main loop
+local function GetBestTarget(targets, mousePos, current)
+    local best, bestDist = nil, CONFIG.FOVRadius + 1
+    for _, t in pairs(targets) do
+        local d = (t.HeadScreenPos - mousePos).Magnitude
+        if d <= CONFIG.FOVRadius and d < bestDist then
+            bestDist = d
+            best = t
+        end
+    end
+    if best and current then
+        local currentDist = (current.HeadScreenPos - mousePos).Magnitude
+        if bestDist < currentDist - 5 then
+            return best
+        else
+            return current
+        end
+    end
+    return best
+end
+
+-- ===== Keybinds =====
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.X then
+        isActive = not isActive
+        UpdateStatus(isActive and "● AIMING" or "○ READY")
+        if not isActive then currentTarget = nil
+    end
+
+    if input.KeyCode == Enum.KeyCode.F3 then
+        local newSize = math.min(CONFIG.FOVRadius + 10, CONFIG.MaxFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD()
+            RebuildFOV()
+        end
+    end
+
+    if input.KeyCode == Enum.KeyCode.F2 then
+        local newSize = math.max(CONFIG.FOVRadius - 10, CONFIG.MinFOV)
+        if newSize ~= CONFIG.FOVRadius then
+            CONFIG.FOVRadius = newSize
+            ShowHUD()
+            RebuildFOV()
+        end
+    end
+end)
+
+-- ===== Main loop =====
 RunService.RenderStepped:Connect(function()
-    local MouseX, MouseY = Mouse.X, Mouse.Y
-    if GUI.FovFrame then
-        GUI.FovFrame.Position = UDim2.new(0, MouseX - CONFIG.FOVRadius, 0, MouseY - CONFIG.FOVRadius)
-    end
+    local mouseX = Mouse.X
+    local mouseY = Mouse.Y
+    fovFrame.Position = UDim2.new(0, mouseX - CONFIG.FOVRadius, 0, mouseY - CONFIG.FOVRadius)
 
-    if not AimlockEnabled or not Gyro or not Torso then
-        if AimlockEnabled and not Gyro then
-            SetupGyro()
-        end
+    if not isActive or not gyro or not torso then
+        if isActive and not gyro then SetupGyro() end
         return
     end
 
-    local Targets = GetTargets(Vector2.new(MouseX, MouseY))
-    if #Targets == 0 then
-        if CurrentTarget then
-            CurrentTarget = nil
-            UpdateStatus("○ NO PLAYERS")
-        end
+    local targets = GetTargets(Vector2.new(mouseX, mouseY))
+    if #targets == 0 then
+        if currentTarget then currentTarget = nil; UpdateStatus("○ NO PLAYERS") end
         return
     end
 
-    -- Find the closest target
-    local BestTarget = nil
-    local BestDist = CONFIG.FOVRadius + 1
-    for _, Target in pairs(Targets) do
-        local Dist = (Target.HeadScreenPos - Vector2.new(MouseX, MouseY)).Magnitude
-        if Dist <= CONFIG.FOVRadius and Dist < BestDist then
-            BestDist = Dist
-            BestTarget = Target
+    local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY), currentTarget)
+    if target then
+        if not currentTarget or target.Player ~= currentTarget.Player then
+            currentTarget = target
         end
-    end
-
-    if BestTarget then
-        CurrentTarget = BestTarget
-        local LookAt = CFrame.lookAt(Torso.Position, CurrentTarget.HeadPosition)
-        Gyro.CFrame = Gyro.CFrame:Lerp(LookAt, CONFIG.LockStrength)
-        UpdateStatus("● " .. CurrentTarget.Player.Name .. " (" .. math.floor(CurrentTarget.Distance) .. "s)")
+        local headPos = currentTarget.HeadPosition
+        local lookAt = CFrame.lookAt(torso.Position, headPos)
+        gyro.CFrame = gyro.CFrame:Lerp(lookAt, CONFIG.LockStrength)
+        UpdateStatus("● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)")
     else
-        if CurrentTarget then
-            CurrentTarget = nil
-            UpdateStatus("○ NO TARGET")
-        end
+        if currentTarget then currentTarget = nil; UpdateStatus("○ NO TARGET") end
     end
 end)
 
--- Keybind
-UserInputService.InputBegan:Connect(function(Input)
-    if Input.KeyCode == CONFIG.ToggleKey then
-        AimlockEnabled = not AimlockEnabled
-        UpdateStatus(AimlockEnabled and "● AIMING" or "○ READY")
-        if not AimlockEnabled then
-            CurrentTarget = nil
-        end
-    end
+Player.CharacterAdded:Connect(function()
+    wait(0.5)
+    if fovFrame then fovFrame.Visible = true end
 end)
+
+print("Aimlock loaded – X to toggle, F2/F3 to adjust FOV")
