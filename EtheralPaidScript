@@ -1,58 +1,223 @@
--- BODYGYRO AIMLOCK (Undetectable)
-local plr = game.Players.LocalPlayer
-local mouse = plr:GetMouse()
-local cam = workspace.CurrentCamera
+-- BODYGYRO AIMLOCK (Fully Working)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
 
-local function GetClosestTarget()
-    local nearest = nil
-    local nearestDist = 90
-    local center = Vector2.new(mouse.X, mouse.Y)
-    
-    for _, p in pairs(game.Players:GetPlayers()) do
-        if p ~= plr and p.Character then
-            local head = p.Character:FindFirstChild("Head")
-            if head then
-                local pos, onScreen = cam:WorldToScreenPoint(head.Position)
+local Player = Players.LocalPlayer
+local Mouse = Player:GetMouse()
+
+-- Config
+local FOVRadius = 90
+local MaxDistance = 200
+local LockStrength = 0.5
+local FOVColor = Color3.fromRGB(220, 160, 255)
+
+local isActive = false
+local currentTarget = nil
+
+-- GUI (FOV circle, same as before)
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SilentAimFOV"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+local fovFrame = Instance.new("Frame")
+fovFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+fovFrame.Position = UDim2.new(0, 0, 0, 0)
+fovFrame.BackgroundTransparency = 1
+fovFrame.ClipsDescendants = true
+fovFrame.Parent = screenGui
+
+local circleContainer = Instance.new("Frame")
+circleContainer.Size = UDim2.new(1, 0, 1, 0)
+circleContainer.Position = UDim2.new(0, 0, 0, 0)
+circleContainer.BackgroundTransparency = 1
+circleContainer.Parent = fovFrame
+
+local dashParts = {}
+local function BuildDashes()
+    for _, child in pairs(circleContainer:GetChildren()) do child:Destroy() end
+    dashParts = {}
+    local numDashes = math.floor((2 * math.pi * FOVRadius) / (10 + 12))
+    local angleStep = (2 * math.pi) / numDashes
+    for i = 1, numDashes do
+        local angle = i * angleStep
+        local x = FOVRadius * math.cos(angle)
+        local y = FOVRadius * math.sin(angle)
+        local dash = Instance.new("Frame")
+        dash.Size = UDim2.new(0, 10, 0, 2)
+        dash.Position = UDim2.new(0.5, x - 5, 0.5, y - 1)
+        dash.BackgroundColor3 = FOVColor
+        dash.BackgroundTransparency = 0
+        dash.BorderSizePixel = 0
+        dash.Rotation = math.deg(angle)
+        dash.Parent = circleContainer
+        table.insert(dashParts, { Frame = dash, Angle = angle })
+    end
+end
+BuildDashes()
+
+local rotation = 0
+RunService.Heartbeat:Connect(function(dt)
+    rotation = (rotation + 180 * dt) % 360
+    local offset = math.rad(rotation)
+    for _, data in pairs(dashParts) do
+        local angle = data.Angle + offset
+        local x = FOVRadius * math.cos(angle)
+        local y = FOVRadius * math.sin(angle)
+        data.Frame.Position = UDim2.new(0.5, x - 5, 0.5, y - 1)
+        data.Frame.Rotation = math.deg(angle)
+    end
+end)
+
+-- Status
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0, 200, 0, 25)
+statusLabel.Position = UDim2.new(0.5, -100, 1.2, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "○ READY"
+statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
+statusLabel.TextSize = 13
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.Parent = fovFrame
+
+local function UpdateStatus(text)
+    statusLabel.Text = text
+end
+
+-- ===== BODYGYRO SYSTEM =====
+local gyro = nil
+local torso = nil
+
+local function CreateGyro(character)
+    if gyro then gyro:Destroy() end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    torso = hrp
+    gyro = Instance.new("BodyGyro")
+    gyro.Parent = torso
+    gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
+    gyro.D = 50
+    gyro.P = 5000
+    gyro.CFrame = torso.CFrame
+    gyro.Name = "AimGyro"
+end
+
+Player.CharacterAdded:Connect(function(char)
+    wait(0.5)
+    CreateGyro(char)
+end)
+
+if Player.Character then
+    CreateGyro(Player.Character)
+end
+
+-- ===== TARGET ACQUISITION =====
+local function IsDowned(character)
+    if not character then return true end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return true end
+    if humanoid.Health <= 0 then return true end
+    local state = humanoid:GetState()
+    if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Dead or
+       state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.GettingUp then
+        return true
+    end
+    return false
+end
+
+local function GetTargets(mousePos)
+    local targets = {}
+    local camPos = Camera.CFrame.Position
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Player and player.Character then
+            if IsDowned(player.Character) then continue end
+            local head = player.Character:FindFirstChild("Head")
+            if head and head.Parent and head.Parent:FindFirstChild("Humanoid") and head.Parent.Humanoid.Health > 0 then
+                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
                 if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    if dist < nearestDist then
-                        nearestDist = dist
-                        nearest = p
+                    local distance = (head.Position - camPos).Magnitude
+                    if distance <= MaxDistance then
+                        table.insert(targets, {
+                            Player = player,
+                            Head = head,
+                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
+                            Distance = distance,
+                            HeadPosition = head.Position,
+                        })
                     end
                 end
             end
         end
     end
-    return nearest
+    return targets
 end
 
--- Create BodyGyro in character
-plr.CharacterAdded:Connect(function(char)
-    wait(0.5)
-    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
-    if torso then
-        local gyro = Instance.new("BodyGyro")
-        gyro.Parent = torso
-        gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-        gyro.D = 50
-        gyro.P = 5000
-        gyro.CFrame = torso.CFrame
-        gyro.Name = "AimGyro"
-        
-        -- Update gyro every frame
-        game:GetService("RunService").RenderStepped:Connect(function()
-            if mouse.Button1Down then
-                local target = GetClosestTarget()
-                if target and target.Character then
-                    local head = target.Character:FindFirstChild("Head")
-                    if head then
-                        local lookAt = CFrame.lookAt(torso.Position, head.Position)
-                        gyro.CFrame = lookAt
-                    end
-                end
-            end
-        end)
+local function GetBestTarget(targets, mousePos, current)
+    local best, bestDist = nil, FOVRadius + 1
+    for _, t in pairs(targets) do
+        local d = (t.HeadScreenPos - mousePos).Magnitude
+        if d <= FOVRadius and d < bestDist then
+            bestDist = d
+            best = t
+        end
+    end
+    if best and current then
+        local currentDist = (current.HeadScreenPos - mousePos).Magnitude
+        if bestDist < currentDist - 5 then
+            return best
+        else
+            return current
+        end
+    end
+    return best
+end
+
+-- ===== KEYBIND =====
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.X then
+        isActive = not isActive
+        UpdateStatus(isActive and "● AIMING" or "○ READY")
+        if not isActive then currentTarget = nil
     end
 end)
 
-print("BodyGyro aimlock loaded")
+-- ===== MAIN LOOP (updates gyro) =====
+RunService.RenderStepped:Connect(function()
+    local mouseX = Mouse.X
+    local mouseY = Mouse.Y
+    fovFrame.Position = UDim2.new(0, mouseX - FOVRadius, 0, mouseY - FOVRadius)
+
+    if not isActive or not gyro or not torso then
+        if isActive and not gyro then
+            CreateGyro(Player.Character)
+        end
+        return
+    end
+
+    if not Player.Character then return end
+
+    local targets = GetTargets(Vector2.new(mouseX, mouseY))
+    if #targets == 0 then
+        if currentTarget then currentTarget = nil; UpdateStatus("○ NO PLAYERS") end
+        return
+    end
+
+    local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY), currentTarget)
+    if target then
+        if not currentTarget or target.Player ~= currentTarget.Player then
+            currentTarget = target
+        end
+        local headPos = currentTarget.HeadPosition
+        local lookAt = CFrame.lookAt(torso.Position, headPos)
+        gyro.CFrame = gyro.CFrame:Lerp(lookAt, LockStrength)
+        UpdateStatus("● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)")
+    else
+        if currentTarget then currentTarget = nil; UpdateStatus("○ NO TARGET") end
+    end
+end)
+
+print("BodyGyro aimlock loaded – press X to toggle")
