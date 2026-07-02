@@ -1,7 +1,7 @@
 --[[
-    MINIMAL FIXED SCRIPT
+    FINAL WORKING SCRIPT (No TweenService, No UIStroke)
     - Rotating FOV circle
-    - F2/F3 adjust FOV with HUD
+    - F2/F3 adjust FOV with simple HUD (appears for 3 seconds)
     - X toggles BodyGyro aimlock
 ]]
 
@@ -9,15 +9,11 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
-if not Player or not Mouse then
-    warn("Player or Mouse missing")
-    return
-end
+if not Player or not Mouse then return end
 
 local CONFIG = {
     FOVRadius = 90,
@@ -30,7 +26,7 @@ local CONFIG = {
     DashLength = 10,
     GapLength = 12,
     RotationSpeed = 180,
-    HUDAutoHideDelay = 5,
+    HUDAutoHideDelay = 3,
 }
 
 local isActive = false
@@ -38,19 +34,18 @@ local currentTarget = nil
 local gyro = nil
 local torso = nil
 local dashParts = {}
+local rotation = 0
 
--- Wait for PlayerGui
 local PlayerGui = Player:WaitForChild("PlayerGui", 5)
 if not PlayerGui then return end
 
--- ===== GUI =====
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SilentAimFOV"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Parent = PlayerGui
 
--- FOV Circle
+-- ===== FOV CIRCLE =====
 local fovFrame = Instance.new("Frame")
 fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
 fovFrame.Position = UDim2.new(0, 0, 0, 0)
@@ -86,7 +81,7 @@ local function BuildDashes()
 end
 BuildDashes()
 
--- Status label
+-- ===== STATUS LABEL =====
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(0, 280, 0, 25)
 statusLabel.Position = UDim2.new(0.5, -140, 1.2, 0)
@@ -101,161 +96,48 @@ local function UpdateStatus(text)
     statusLabel.Text = text .. " | FOV: " .. CONFIG.FOVRadius
 end
 
--- ===== HUD (slider) =====
+-- ===== SIMPLE HUD (No TweenService) =====
 local hudFrame = Instance.new("Frame")
-hudFrame.Name = "HUD"
-hudFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-hudFrame.Position = UDim2.new(0.5, 0, 0.82, 0)
-hudFrame.Size = UDim2.new(0, 400, 0, 70)
+hudFrame.Size = UDim2.new(0, 300, 0, 60)
+hudFrame.Position = UDim2.new(0.5, -150, 0.82, 0)
 hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-hudFrame.BorderSizePixel = 4
-hudFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+hudFrame.BorderSizePixel = 2
+hudFrame.BorderColor3 = Color3.fromRGB(120, 120, 120)
+hudFrame.BackgroundTransparency = 0.1
 hudFrame.Visible = false
 hudFrame.Parent = screenGui
 
-local stroke = Instance.new("UIStroke")
-stroke.Parent = hudFrame
-stroke.Thickness = 2
-stroke.Color = Color3.fromRGB(120, 120, 120)
+local hudLabel = Instance.new("TextLabel")
+hudLabel.Size = UDim2.new(1, 0, 0.4, 0)
+hudLabel.Position = UDim2.new(0, 0, 0, 0)
+hudLabel.BackgroundTransparency = 1
+hudLabel.Text = "FOV"
+hudLabel.TextColor3 = Color3.fromRGB(145, 75, 255)
+hudLabel.TextSize = 16
+hudLabel.Font = Enum.Font.SourceSansBold
+hudLabel.Parent = hudFrame
 
-local accent = Instance.new("Frame")
-accent.Parent = hudFrame
-accent.Position = UDim2.new(0, 12, 0, 12)
-accent.Size = UDim2.new(0, 28, 1, -24)
-accent.BackgroundColor3 = Color3.fromRGB(145, 75, 255)
-accent.BorderSizePixel = 3
-accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
+local hudValue = Instance.new("TextLabel")
+hudValue.Size = UDim2.new(1, 0, 0.6, 0)
+hudValue.Position = UDim2.new(0, 0, 0.4, 0)
+hudValue.BackgroundTransparency = 1
+hudValue.Text = "90"
+hudValue.TextColor3 = Color3.fromRGB(220, 160, 255)
+hudValue.TextSize = 30
+hudValue.Font = Enum.Font.SourceSansBold
+hudValue.Parent = hudFrame
 
-local label = Instance.new("TextLabel")
-label.Parent = hudFrame
-label.BackgroundTransparency = 1
-label.Position = UDim2.new(0, 50, 0, 0)
-label.Size = UDim2.new(0, 80, 1, 0)
-label.Text = "FOV"
-label.Font = Enum.Font.Arcade
-label.TextScaled = true
-label.TextColor3 = Color3.fromRGB(240, 240, 240)
-label.TextStrokeTransparency = 0
-label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-
-local sliderBG = Instance.new("Frame")
-sliderBG.Parent = hudFrame
-sliderBG.Position = UDim2.new(0, 150, 0.5, -10)
-sliderBG.Size = UDim2.new(0, 160, 0, 20)
-sliderBG.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-sliderBG.BorderSizePixel = 3
-sliderBG.BorderColor3 = Color3.fromRGB(0, 0, 0)
-
-local fill = Instance.new("Frame")
-fill.Parent = sliderBG
-fill.Size = UDim2.new(0.5, 0, 1, 0)
-fill.BackgroundColor3 = Color3.fromRGB(150, 85, 255)
-fill.BorderSizePixel = 0
-
-local knob = Instance.new("Frame")
-knob.Parent = sliderBG
-knob.AnchorPoint = Vector2.new(0.5, 0.5)
-knob.Position = UDim2.new(0.5, 0, 0.5, 0)
-knob.Size = UDim2.new(0, 20, 0, 30)
-knob.BackgroundColor3 = Color3.fromRGB(155, 90, 255)
-knob.BorderSizePixel = 3
-knob.BorderColor3 = Color3.fromRGB(0, 0, 0)
-
-local valueBox = Instance.new("Frame")
-valueBox.Parent = hudFrame
-valueBox.Position = UDim2.new(1, -80, 0.5, -20)
-valueBox.Size = UDim2.new(0, 60, 0, 40)
-valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-valueBox.BorderSizePixel = 3
-valueBox.BorderColor3 = Color3.fromRGB(150, 85, 255)
-
-local number = Instance.new("TextLabel")
-number.Parent = valueBox
-number.BackgroundTransparency = 1
-number.Size = UDim2.fromScale(1, 1)
-number.Font = Enum.Font.Arcade
-number.TextScaled = true
-number.Text = "90"
-number.TextColor3 = Color3.fromRGB(150, 85, 255)
-number.TextStrokeTransparency = 0
-number.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-
--- HUD logic
-local hudVisible = false
-local hudHideTimer = nil
-
-local function UpdateSlider(percent)
-    percent = math.clamp(percent, 0, 1)
-    local newFOV = math.round(CONFIG.MinFOV + (CONFIG.MaxFOV - CONFIG.MinFOV) * percent)
-    newFOV = math.clamp(newFOV, CONFIG.MinFOV, CONFIG.MaxFOV)
-    if newFOV ~= CONFIG.FOVRadius then
-        CONFIG.FOVRadius = newFOV
-        fovFrame.Size = UDim2.new(0, CONFIG.FOVRadius * 2, 0, CONFIG.FOVRadius * 2)
-        BuildDashes()
-        UpdateStatus(statusLabel.Text:match("^[^|]+"))
-        number.Text = tostring(CONFIG.FOVRadius)
-    end
-    fill.Size = UDim2.new(percent, 0, 1, 0)
-    knob.Position = UDim2.new(percent, 0, 0.5, 0)
-end
+local hudTimer = nil
 
 local function ShowHUD()
-    if hudHideTimer then task.cancel(hudHideTimer); hudHideTimer = nil end
-    if not hudVisible then
-        hudFrame.Visible = true
-        hudFrame.Position = UDim2.new(0.5, 0, -0.12, 0)
-        local rollDown = TweenService:Create(hudFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = UDim2.new(0.5, 0, 0.82, 0)
-        })
-        rollDown:Play()
-        hudVisible = true
-    end
-    local percent = (CONFIG.FOVRadius - CONFIG.MinFOV) / (CONFIG.MaxFOV - CONFIG.MinFOV)
-    fill.Size = UDim2.new(percent, 0, 1, 0)
-    knob.Position = UDim2.new(percent, 0, 0.5, 0)
-    number.Text = tostring(CONFIG.FOVRadius)
-    hudHideTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
-        local rollUp = TweenService:Create(hudFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Position = UDim2.new(0.5, 0, -0.12, 0)
-        })
-        rollUp:Play()
-        hudVisible = false
-        task.wait(0.35)
+    hudFrame.Visible = true
+    hudValue.Text = tostring(CONFIG.FOVRadius)
+    if hudTimer then task.cancel(hudTimer); hudTimer = nil end
+    hudTimer = task.delay(CONFIG.HUDAutoHideDelay, function()
         hudFrame.Visible = false
-        hudHideTimer = nil
+        hudTimer = nil
     end)
 end
-
--- Slider dragging
-local dragging = false
-sliderBG.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
-        UpdateSlider(percent)
-    end
-end)
-sliderBG.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-end)
-sliderBG.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
-        UpdateSlider(percent)
-    end
-end)
-knob.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
-end)
-knob.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-end)
-knob.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = (input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X
-        UpdateSlider(percent)
-    end
-end)
 
 -- ===== BODYGYRO =====
 local function SetupGyro()
@@ -283,7 +165,7 @@ if Player.Character then
     SetupGyro()
 end
 
--- ===== TARGET =====
+-- ===== TARGET FUNCTIONS =====
 local function IsDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -343,7 +225,6 @@ local function GetBestTarget(targets, mousePos, current)
 end
 
 -- ===== ROTATION =====
-local rotation = 0
 RunService.Heartbeat:Connect(function(deltaTime)
     rotation = (rotation + CONFIG.RotationSpeed * deltaTime) % 360
     local angleOffset = math.rad(rotation)
@@ -425,4 +306,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("✅ Aimlock loaded – X to toggle, F2/F3 for FOV")
+print("Aimlock loaded – X to toggle, F2/F3 for FOV")
