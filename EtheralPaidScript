@@ -1,4 +1,4 @@
--- Silent Aim - With Error Display
+-- COMPLETE SCRIPT (based on working base)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -18,11 +18,8 @@ local currentTarget = nil
 local gyro = nil
 local torso = nil
 
-local PlayerGui = Player:WaitForChild("PlayerGui", 3)
-if not PlayerGui then return end
-
 local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = PlayerGui
+screenGui.Parent = Player:WaitForChild("PlayerGui")
 
 local fovFrame = Instance.new("Frame")
 fovFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
@@ -69,7 +66,7 @@ statusLabel.TextSize = 13
 statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.Parent = fovFrame
 
--- Rotation
+-- ===== Rotation =====
 local rotation = 0
 RunService.Heartbeat:Connect(function(dt)
     rotation = (rotation + RotationSpeed * dt) % 360
@@ -83,7 +80,7 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
--- Gyro
+-- ===== Gyro setup =====
 local function SetupGyro()
     local char = Player.Character
     if not char then return false end
@@ -104,9 +101,12 @@ Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     SetupGyro()
 end)
-if Player.Character then SetupGyro() end
 
--- Target functions
+if Player.Character then
+    SetupGyro()
+end
+
+-- ===== Target functions =====
 local function IsDowned(character)
     if not character then return true end
     local humanoid = character:FindFirstChild("Humanoid")
@@ -165,7 +165,7 @@ local function GetBestTarget(targets, mousePos, current)
     return best
 end
 
--- Keybinds
+-- ===== Keybinds =====
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.X then
         isActive = not isActive
@@ -194,28 +194,21 @@ UserInputService.InputBegan:Connect(function(input)
     end
 end)
 
--- Main loop (with error catching)
+-- ===== Combined loop =====
 RunService.RenderStepped:Connect(function()
-    -- Get mouse position safely
-    local success, mousePos = pcall(function()
-        return UserInputService:GetMouseLocation()
-    end)
-    if not success or not mousePos then
-        statusLabel.Text = "Mouse error"
-        return
-    end
+    -- Update FOV position
+    local mousePos = UserInputService:GetMouseLocation()
     local mouseX = mousePos.X
     local mouseY = mousePos.Y
-
     fovFrame.Position = UDim2.new(0, mouseX - FOVRadius, 0, mouseY - FOVRadius)
 
+    -- Aimlock
     if not isActive or not gyro or not torso then
         return
     end
 
-    -- Get targets with error protection
-    local targets, err = pcall(GetTargets, Vector2.new(mouseX, mouseY))
-    if not targets or #targets == 0 then
+    local targets = GetTargets(Vector2.new(mouseX, mouseY))
+    if #targets == 0 then
         if currentTarget then
             currentTarget = nil
             statusLabel.Text = "○ NO TARGET"
@@ -228,10 +221,10 @@ RunService.RenderStepped:Connect(function()
         if not currentTarget or target.Player ~= currentTarget.Player then
             currentTarget = target
         end
-        local headPos = target.HeadPosition
+        local headPos = currentTarget.HeadPosition
         local lookAt = CFrame.lookAt(torso.Position, headPos)
         gyro.CFrame = gyro.CFrame:Lerp(lookAt, LockStrength)
-        statusLabel.Text = "● " .. target.Player.Name .. " (" .. math.floor(target.Distance) .. "s)"
+        statusLabel.Text = "● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)"
     else
         if currentTarget then
             currentTarget = nil
@@ -239,3 +232,5 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
+print("All features loaded – Press X")
