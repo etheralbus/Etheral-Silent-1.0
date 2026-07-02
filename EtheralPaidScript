@@ -1,59 +1,59 @@
-print("DEBUG: Script started")
+-- STEALTH AIMLOCK (Bypass detection)
+local plr = game.Players.LocalPlayer
+local mouse = plr:GetMouse()
+local cam = workspace.CurrentCamera
 
--- Check basic services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local Camera = Workspace.CurrentCamera
-
-print("DEBUG: Services loaded")
-
-local Player = Players.LocalPlayer
-if not Player then
-    print("DEBUG: No LocalPlayer found")
-    return
+-- Don't change Camera directly – use mouse movement simulation
+local function AimAt(target)
+    if not target or not target.Character then return end
+    local head = target.Character:FindFirstChild("Head")
+    if not head then return end
+    
+    local headPos, onScreen = cam:WorldToScreenPoint(head.Position)
+    if not onScreen then return end
+    
+    -- Simulate mouse movement to head position
+    local deltaX = headPos.X - mouse.X
+    local deltaY = headPos.Y - mouse.Y
+    
+    -- Send fake mouse movement (works on some executors)
+    mouse.Move(deltaX, deltaY)
+    
+    -- Alternative: directly set mouse position (if supported)
+    mouse.X = headPos.X
+    mouse.Y = headPos.Y
 end
-print("DEBUG: LocalPlayer found: " .. tostring(Player.Name))
 
--- Wait for PlayerGui
-local PlayerGui = Player:WaitForChild("PlayerGui")
-print("DEBUG: PlayerGui found")
-
--- Try to create a simple UI
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TestGUI"
-screenGui.Parent = PlayerGui
-print("DEBUG: ScreenGui created")
-
-local testFrame = Instance.new("Frame")
-testFrame.Size = UDim2.new(0, 100, 0, 100)
-testFrame.Position = UDim2.new(0.5, -50, 0.5, -50)
-testFrame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-testFrame.BackgroundTransparency = 0
-testFrame.Parent = screenGui
-print("DEBUG: Red test frame created, should be visible")
-
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(1, 0, 1, 0)
-label.BackgroundTransparency = 1
-label.Text = "X to toggle"
-label.TextColor3 = Color3.fromRGB(255,255,255)
-label.TextSize = 24
-label.Font = Enum.Font.SourceSansBold
-label.Parent = testFrame
-
-print("DEBUG: All done, waiting for X key")
-
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.X then
-        print("DEBUG: X key pressed")
-        if testFrame.BackgroundColor3 == Color3.fromRGB(255,0,0) then
-            testFrame.BackgroundColor3 = Color3.fromRGB(0,255,0)
-            label.Text = "AIMLOCK ON"
-        else
-            testFrame.BackgroundColor3 = Color3.fromRGB(255,0,0)
-            label.Text = "AIMLOCK OFF"
+-- Hook mouse button to aim before shooting
+local oldClick = mouse.Button1Down
+mouse.Button1Down = function(...)
+    -- Find nearest player in FOV (90px)
+    local nearest = nil
+    local nearestDist = 90
+    local center = Vector2.new(mouse.X, mouse.Y)
+    
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= plr and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            if head then
+                local pos, onScreen = cam:WorldToScreenPoint(head.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if dist < nearestDist then
+                        nearestDist = dist
+                        nearest = p
+                    end
+                end
+            end
         end
     end
-end)
+    
+    if nearest then
+        AimAt(nearest)
+    end
+    
+    -- Call original click
+    if oldClick then oldClick(...) end
+end
+
+print("Stealth aimlock loaded")
