@@ -1,169 +1,61 @@
--- MINIMAL WORKING SCRIPT (with prints)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
-
 local Player = Players.LocalPlayer
-print("1. Player found:", Player and Player.Name)
-
--- GUI
-local PlayerGui = Player:WaitForChild("PlayerGui")
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FOV"
-screenGui.Parent = PlayerGui
-print("2. ScreenGui created")
-
--- FOV Circle
+local Mouse = Player:GetMouse()
+print("1")
 local FOVRadius = 90
+local isActive = false
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = Player:WaitForChild("PlayerGui")
+print("2")
 local fovFrame = Instance.new("Frame")
-fovFrame.Size = UDim2.new(0, FOVRadius*2, 0, FOVRadius*2)
-fovFrame.Position = UDim2.new(0,0,0,0)
+fovFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
+fovFrame.Position = UDim2.new(0, 0, 0, 0)
 fovFrame.BackgroundTransparency = 1
 fovFrame.Parent = screenGui
-print("3. fovFrame created")
-
--- Dashes
-for i=1,20 do
-    local angle = (i/20)*2*math.pi
-    local x = FOVRadius*math.cos(angle)
-    local y = FOVRadius*math.sin(angle)
+print("3")
+local circleContainer = Instance.new("Frame")
+circleContainer.Size = UDim2.new(1, 0, 1, 0)
+circleContainer.Position = UDim2.new(0, 0, 0, 0)
+circleContainer.BackgroundTransparency = 1
+circleContainer.Parent = fovFrame
+print("4")
+for i = 1, 20 do
+    local angle = (i / 20) * 2 * math.pi
+    local x = FOVRadius * math.cos(angle)
+    local y = FOVRadius * math.sin(angle)
     local dash = Instance.new("Frame")
-    dash.Size = UDim2.new(0,8,0,2)
-    dash.Position = UDim2.new(0.5, x-4, 0.5, y-1)
-    dash.BackgroundColor3 = Color3.fromRGB(220,160,255)
+    dash.Size = UDim2.new(0, 8, 0, 2)
+    dash.Position = UDim2.new(0.5, x - 4, 0.5, y - 1)
+    dash.BackgroundColor3 = Color3.fromRGB(220, 160, 255)
     dash.BackgroundTransparency = 0
+    dash.BorderSizePixel = 0
     dash.Rotation = math.deg(angle)
-    dash.Parent = fovFrame
+    dash.Parent = circleContainer
 end
-print("4. Dashes created")
-
--- Status
+print("5")
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0,200,0,25)
-statusLabel.Position = UDim2.new(0.5,-100,1.2,0)
+statusLabel.Size = UDim2.new(0, 200, 0, 25)
+statusLabel.Position = UDim2.new(0.5, -100, 1.2, 0)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "○ READY"
-statusLabel.TextColor3 = Color3.fromRGB(180,120,210)
+statusLabel.Text = "Press X"
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 statusLabel.TextSize = 13
 statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.Parent = fovFrame
-print("5. Status label created")
-
--- State
-local isActive = false
-local currentTarget = nil
-local gyro = nil
-local torso = nil
-
--- Gyro setup
-local function SetupGyro()
-    local char = Player.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    if gyro then gyro:Destroy() end
-    torso = hrp
-    gyro = Instance.new("BodyGyro")
-    gyro.Parent = torso
-    gyro.MaxTorque = Vector3.new(400,400,400) -- very low
-    gyro.D = 20
-    gyro.P = 2000
-    gyro.CFrame = torso.CFrame
-    print("6. Gyro created")
-    return true
-end
-
--- Initial gyro
-if Player.Character then
-    SetupGyro()
-else
-    print("Waiting for character...")
-end
-Player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    SetupGyro()
-end)
-
--- Target functions
-local function GetTargets(mousePos)
-    local targets = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= Player and player.Character then
-            local head = player.Character:FindFirstChild("Head")
-            if head then
-                local pos, onScreen = Camera:WorldToScreenPoint(head.Position)
-                if onScreen then
-                    local dist = (head.Position - Camera.CFrame.Position).Magnitude
-                    if dist <= 200 then
-                        table.insert(targets, {
-                            Player = player,
-                            Head = head,
-                            HeadScreenPos = Vector2.new(pos.X, pos.Y),
-                            Distance = dist,
-                            HeadPosition = head.Position,
-                        })
-                    end
-                end
-            end
-        end
-    end
-    return targets
-end
-
-local function GetBest(targets, mousePos)
-    local best, bestDist = nil, FOVRadius+1
-    for _, t in pairs(targets) do
-        local d = (t.HeadScreenPos - mousePos).Magnitude
-        if d <= FOVRadius and d < bestDist then
-            bestDist = d
-            best = t
-        end
-    end
-    return best
-end
-
--- Keybind
+print("6")
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.X then
         isActive = not isActive
-        statusLabel.Text = isActive and "● AIMING" or "○ READY"
-        if not isActive then currentTarget = nil
-        print("Toggled:", isActive)
+        statusLabel.Text = isActive and "ON" or "OFF"
     end
 end)
-
--- Main loop
+print("7")
 RunService.RenderStepped:Connect(function()
-    local mousePos = UserInputService:GetMouseLocation()
-    local mouseX, mouseY = mousePos.X, mousePos.Y
+    local mouseX = Mouse.X
+    local mouseY = Mouse.Y
     fovFrame.Position = UDim2.new(0, mouseX - FOVRadius, 0, mouseY - FOVRadius)
-
-    if not isActive or not gyro or not torso then
-        -- try to recreate gyro if missing
-        if isActive and not gyro then
-            SetupGyro()
-        end
-        return
-    end
-
-    local targets = GetTargets(Vector2.new(mouseX, mouseY))
-    if #targets == 0 then
-        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO PLAYERS" end
-        return
-    end
-
-    local target = GetBest(targets, Vector2.new(mouseX, mouseY))
-    if target then
-        if not currentTarget or target.Player ~= currentTarget.Player then
-            currentTarget = target
-        end
-        local lookAt = CFrame.lookAt(torso.Position, currentTarget.HeadPosition)
-        gyro.CFrame = gyro.CFrame:Lerp(lookAt, 0.2)
-        statusLabel.Text = "● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)"
-    else
-        if currentTarget then currentTarget = nil; statusLabel.Text = "○ NO TARGET" end
-    end
 end)
-
-print("7. Script fully loaded")
+print("DONE")
