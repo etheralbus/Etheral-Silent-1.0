@@ -1,4 +1,4 @@
-print("=== SCRIPT START ===")
+print("=== START ===")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -6,245 +6,107 @@ local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 
 local Player = Players.LocalPlayer
-if not Player then print("ERROR: No LocalPlayer"); return end
-print("Player found:", Player.Name)
+print("Player:", Player)
 
--- Wait for PlayerGui
-local PlayerGui = Player:WaitForChild("PlayerGui", 5)
-if not PlayerGui then print("ERROR: No PlayerGui"); return end
-print("PlayerGui found")
+local PlayerGui = Player:WaitForChild("PlayerGui")
+print("PlayerGui:", PlayerGui)
 
--- Get mouse safely
-local Mouse = Player:GetMouse()
-if not Mouse then
-    print("Mouse is nil, using UserInputService")
-    local function getMousePos()
-        local pos = UserInputService:GetMouseLocation()
-        return pos.X, pos.Y
-    end
-else
-    print("Mouse found")
-    local function getMousePos()
-        return Mouse.X, Mouse.Y
-    end
-end
-
--- CONFIG
-local FOVRadius = 90
-local LockStrength = 0.5
-local isActive = false
-local currentTarget = nil
-local gyro = nil
-local torso = nil
-
--- Create GUI (simplified)
+-- Create a simple red square to test GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FOV"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
 screenGui.Parent = PlayerGui
-print("ScreenGui created")
+local testFrame = Instance.new("Frame")
+testFrame.Size = UDim2.new(0, 100, 0, 100)
+testFrame.Position = UDim2.new(0.5, -50, 0.5, -50)
+testFrame.BackgroundColor3 = Color3.new(1, 0, 0)
+testFrame.Parent = screenGui
+print("Red square created")
 
-local fovFrame = Instance.new("Frame")
-fovFrame.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
-fovFrame.Position = UDim2.new(0, 0, 0, 0)
-fovFrame.BackgroundTransparency = 1
-fovFrame.Parent = screenGui
-print("fovFrame created")
-
--- Create dashes
-for i = 1, 20 do
-    local angle = (i / 20) * 2 * math.pi
-    local x = FOVRadius * math.cos(angle)
-    local y = FOVRadius * math.sin(angle)
-    local dash = Instance.new("Frame")
-    dash.Size = UDim2.new(0, 8, 0, 2)
-    dash.Position = UDim2.new(0.5, x - 4, 0.5, y - 1)
-    dash.BackgroundColor3 = Color3.fromRGB(220, 160, 255)
-    dash.BackgroundTransparency = 0
-    dash.BorderSizePixel = 0
-    dash.Rotation = math.deg(angle)
-    dash.Parent = fovFrame
-end
-print("Dashes created")
-
--- Status text
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0, 200, 0, 25)
-statusLabel.Position = UDim2.new(0.5, -100, 1.2, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "○ READY"
-statusLabel.TextColor3 = Color3.fromRGB(180, 120, 210)
-statusLabel.TextSize = 13
-statusLabel.Font = Enum.Font.SourceSansBold
-statusLabel.Parent = fovFrame
-print("Status label created")
-
-local function UpdateStatus(text)
-    if statusLabel then
-        statusLabel.Text = text
-    end
-end
-
--- Gyro setup
+-- Create BodyGyro
 local function SetupGyro()
     local char = Player.Character
-    if not char then
-        print("No character yet")
-        return false
-    end
+    if not char then return nil end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then
-        print("No HumanoidRootPart")
-        return false
-    end
-    if gyro then gyro:Destroy() end
-    torso = hrp
-    gyro = Instance.new("BodyGyro")
-    gyro.Parent = torso
+    if not hrp then return nil end
+    local gyro = Instance.new("BodyGyro")
+    gyro.Parent = hrp
     gyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-    gyro.D = 50
-    gyro.P = 5000
-    gyro.CFrame = torso.CFrame
-    print("Gyro created successfully")
-    return true
+    gyro.CFrame = hrp.CFrame
+    return gyro
 end
 
--- Retry gyro every few seconds if not set
-local function EnsureGyro()
-    if not gyro or not gyro.Parent then
-        SetupGyro()
+local gyro = SetupGyro()
+print("Gyro:", gyro)
+
+-- Simple aimlock: when X pressed, rotate gyro to nearest player
+local isActive = false
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.X then
+        isActive = not isActive
+        print("Toggled:", isActive)
     end
-end
-
--- Character added event
-Player.CharacterAdded:Connect(function()
-    print("Character added")
-    task.wait(0.5)
-    SetupGyro()
 end)
 
--- Initial setup
-if Player.Character then
-    SetupGyro()
-else
-    print("Waiting for character...")
-end
-
--- Target functions
-local function IsDowned(character)
-    if not character then return true end
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return true end
-    if humanoid.Health <= 0 then return true end
-    local state = humanoid:GetState()
-    if state == Enum.HumanoidStateType.Physics or state == Enum.HumanoidStateType.Dead or
-       state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.GettingUp then
-        return true
+-- Helper to get mouse position
+local function GetMousePos()
+    -- Use UserInputService if Mouse is nil
+    local success, pos = pcall(function()
+        return UserInputService:GetMouseLocation()
+    end)
+    if success then
+        return pos.X, pos.Y
+    else
+        -- fallback to Mouse
+        local mouse = Player:GetMouse()
+        if mouse then
+            return mouse.X, mouse.Y
+        else
+            return 0, 0
+        end
     end
-    return false
 end
 
-local function GetTargets(mousePos)
-    local targets = {}
-    local camPos = Camera.CFrame.Position
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= Player and player.Character then
-            if IsDowned(player.Character) then continue end
-            local head = player.Character:FindFirstChild("Head")
-            if head and head.Parent and head.Parent:FindFirstChild("Humanoid") and head.Parent.Humanoid.Health > 0 then
-                local headPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+RunService.RenderStepped:Connect(function()
+    if not isActive or not gyro or not gyro.Parent then
+        if isActive and not gyro then
+            gyro = SetupGyro()
+            print("Recreating gyro")
+        end
+        return
+    end
+
+    local mouseX, mouseY = GetMousePos()
+    -- Find nearest player in FOV (90px)
+    local nearest = nil
+    local nearestDist = 90
+    local center = Vector2.new(mouseX, mouseY)
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            if head then
+                local pos, onScreen = Camera:WorldToScreenPoint(head.Position)
                 if onScreen then
-                    local distance = (head.Position - camPos).Magnitude
-                    if distance <= 200 then
-                        table.insert(targets, {
-                            Player = player,
-                            Head = head,
-                            HeadScreenPos = Vector2.new(headPos.X, headPos.Y),
-                            Distance = distance,
-                            HeadPosition = head.Position,
-                        })
+                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if dist < nearestDist then
+                        nearestDist = dist
+                        nearest = p
                     end
                 end
             end
         end
     end
-    return targets
-end
 
-local function GetBestTarget(targets, mousePos, current)
-    local best, bestDist = nil, FOVRadius + 1
-    for _, t in pairs(targets) do
-        local d = (t.HeadScreenPos - mousePos).Magnitude
-        if d <= FOVRadius and d < bestDist then
-            bestDist = d
-            best = t
+    if nearest and nearest.Character then
+        local head = nearest.Character:FindFirstChild("Head")
+        if head then
+            local hrp = gyro.Parent
+            local lookAt = CFrame.lookAt(hrp.Position, head.Position)
+            gyro.CFrame = gyro.CFrame:Lerp(lookAt, 0.5)
+            print("Aiming at:", nearest.Name)
         end
-    end
-    if best and current then
-        local currentDist = (current.HeadScreenPos - mousePos).Magnitude
-        if bestDist < currentDist - 5 then
-            return best
-        else
-            return current
-        end
-    end
-    return best
-end
-
--- Keybind
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.X then
-        isActive = not isActive
-        UpdateStatus(isActive and "● AIMING" or "○ READY")
-        if not isActive then currentTarget = nil
-        print("Toggled aimlock:", isActive)
     end
 end)
 
--- Main loop
-RunService.RenderStepped:Connect(function()
-    -- Ensure gyro exists
-    EnsureGyro()
-    
-    local mouseX, mouseY
-    if Mouse then
-        mouseX = Mouse.X
-        mouseY = Mouse.Y
-    else
-        local pos = UserInputService:GetMouseLocation()
-        mouseX = pos.X
-        mouseY = pos.Y
-    end
-    
-    if fovFrame then
-        fovFrame.Position = UDim2.new(0, mouseX - FOVRadius, 0, mouseY - FOVRadius)
-    end
-
-    if not isActive or not gyro or not torso then
-        return
-    end
-
-    local targets = GetTargets(Vector2.new(mouseX, mouseY))
-    if #targets == 0 then
-        if currentTarget then currentTarget = nil; UpdateStatus("○ NO PLAYERS") end
-        return
-    end
-
-    local target = GetBestTarget(targets, Vector2.new(mouseX, mouseY), currentTarget)
-    if target then
-        if not currentTarget or target.Player ~= currentTarget.Player then
-            currentTarget = target
-        end
-        local headPos = currentTarget.HeadPosition
-        local lookAt = CFrame.lookAt(torso.Position, headPos)
-        gyro.CFrame = gyro.CFrame:Lerp(lookAt, LockStrength)
-        UpdateStatus("● " .. currentTarget.Player.Name .. " (" .. math.floor(currentTarget.Distance) .. "s)")
-    else
-        if currentTarget then currentTarget = nil; UpdateStatus("○ NO TARGET") end
-    end
-end)
-
-print("=== SCRIPT FULLY LOADED ===")
+print("=== SCRIPT LOADED, PRESS X ===")
 print("AIMLOCK FULLY LOADED - press X to toggle")
 print("AIMLOCK FULLY LOADED - press X to toggle")
